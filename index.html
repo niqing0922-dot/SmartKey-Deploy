@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>关键词矩阵</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+/* ═══════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════ */
+:root {
+  --bg:        #ffffff;
+  --bg-soft:   #f8f9fb;
+  --bg-muted:  #f1f3f6;
+  --bg-hover:  #eef0f4;
+  --border:    #e4e7ec;
+  --border-md: #d0d5dd;
+  --text:      #101828;
+  --text-2:    #475467;
+  --text-3:    #98a2b3;
+
+  --green:     #12b76a;
+  --green-bg:  #ecfdf3;
+  --green-text:#027a48;
+  --green-dk:  #039855;
+
+  --blue:      #2563eb;
+  --blue-bg:   #eff6ff;
+  --blue-text: #1d4ed8;
+
+  --amber:     #f59e0b;
+  --amber-bg:  #fffbeb;
+  --amber-text:#b45309;
+
+  --red:       #ef4444;
+  --red-bg:    #fef2f2;
+  --red-text:  #b91c1c;
+
+  --purple:    #7c3aed;
+  --purple-bg: #f5f3ff;
+  --purple-text:#5b21b6;
+
+  --pink:      #ec4899;
+  --pink-bg:   #fdf2f8;
+  --pink-text: #9d174d;
+
+  --orange:    #f97316;
+  --orange-bg: #fff7ed;
+  --orange-text:#c2410c;
+
+  --radius-sm: 6px;
+  --radius:    8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  --shadow-xs: 0 1px 2px rgba(16,24,40,.05);
+  --shadow-sm: 0 1px 3px rgba(16,24,40,.1),0 1px 2px rgba(16,24,40,.06);
+  --shadow-md: 0 4px 8px -2px rgba(16,24,40,.1),0 2px 4px -2px rgba(16,24,40,.06);
+  --shadow-lg: 0 12px 24px -4px rgba(16,24,40,.12),0 4px 8px -2px rgba(16,24,40,.06);
+
+  --sidebar-w: 232px;
+  --header-h:  60px;
+}
+
+[data-theme="dark"] {
+  --bg:        #0f1117;
+  --bg-soft:   #161b27;
+  --bg-muted:  #1e2433;
+  --bg-hover:  #252d3d;
+  --border:    #2a3347;
+  --border-md: #3a4560;
+  --text:      #f0f2f7;
+  --text-2:    #8b95a8;
+  --text-3:    #4b5568;
+
+  --green:     #34d399;
+  --green-bg:  #052e1a;
+  --green-text:#6ee7b7;
+  --green-dk:  #10b981;
+
+  --blue:      #60a5fa;
+  --blue-bg:   #0c1e3c;
+  --blue-text: #93c5fd;
+
+  --amber:     #fbbf24;
+  --amber-bg:  #1c1200;
+  --amber-text:#fcd34d;
+
+  --red:       #f87171;
+  --red-bg:    #1a0a0a;
+  --red-text:  #fca5a5;
+
+  --purple:    #a78bfa;
+  --purple-bg: #160d2e;
+  --purple-text:#c4b5fd;
+
+  --pink:      #f472b6;
+  --pink-bg:   #1a0a14;
+  --pink-text: #f9a8d4;
+
+  --orange:    #fb923c;
+  --orange-bg: #1a0d00;
+  --orange-text:#fdba74;
+
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.2);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.3),0 1px 2px rgba(0,0,0,.2);
+  --shadow-md: 0 4px 8px -2px rgba(0,0,0,.3),0 2px 4px -2px rgba(0,0,0,.2);
+  --shadow-lg: 0 12px 24px -4px rgba(0,0,0,.4),0 4px 8px -2px rgba(0,0,0,.3);
+}
+
+/* ═══════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%;-webkit-font-smoothing:antialiased}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Inter',system-ui,sans-serif;
+  font-size:14px;line-height:1.5;
+  height:100%;transition:background .2s,color .2s;
+}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+button{font-family:inherit;cursor:pointer}
+input,textarea,select{font-family:inherit}
+::placeholder{color:var(--text-3)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-md);border-radius:99px}
+
+/* ═══════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════ */
+.app{display:flex;height:100vh;overflow:hidden}
+
+/* ── Sidebar ── */
+.sidebar{
+  width:var(--sidebar-w);flex-shrink:0;
+  background:var(--bg-soft);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  transition:background .2s,border-color .2s;
+  overflow:hidden;
+}
+.sidebar-logo{
+  display:flex;align-items:center;gap:10px;
+  padding:18px 16px 14px;
+  border-bottom:1px solid var(--border);
+}
+.sidebar-logo-icon{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(135deg,#2563eb,#7c3aed);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.sidebar-logo-icon svg{width:14px;height:14px;fill:#fff}
+.sidebar-logo-text{
+  font-size:13.5px;font-weight:600;letter-spacing:-.01em;
+  line-height:1.2;color:var(--text);
+}
+.sidebar-logo-sub{font-size:10.5px;color:var(--text-3);margin-top:1px}
+
+.sidebar-nav{flex:1;padding:8px;overflow-y:auto}
+.nav-group-label{
+  font-size:10px;font-weight:600;color:var(--text-3);
+  text-transform:uppercase;letter-spacing:.07em;
+  padding:0 8px;margin:14px 0 4px;
+}
+.nav-group-label:first-child{margin-top:4px}
+.nav-item{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 10px;border-radius:var(--radius-sm);
+  cursor:pointer;color:var(--text-2);font-size:13px;
+  transition:all .13s;margin-bottom:1px;user-select:none;
+}
+.nav-item:hover{background:var(--bg-muted);color:var(--text)}
+.nav-item.active{background:var(--blue-bg);color:var(--blue);font-weight:500}
+[data-theme="dark"] .nav-item.active{background:var(--blue-bg);color:var(--blue-text)}
+.nav-icon{width:16px;height:16px;flex-shrink:0;opacity:.7}
+.nav-item.active .nav-icon{opacity:1}
+.nav-badge{
+  margin-left:auto;background:var(--bg-muted);color:var(--text-3);
+  font-size:10px;font-weight:600;padding:1px 6px;
+  border-radius:99px;font-family:'JetBrains Mono',monospace;
+}
+.nav-item.active .nav-badge{background:var(--blue-bg);color:var(--blue-text)}
+
+.sidebar-footer{
+  padding:10px;border-top:1px solid var(--border);
+  display:flex;flex-direction:column;gap:4px;
+}
+.footer-row{display:flex;align-items:center;justify-content:space-between;padding:4px 6px}
+.footer-label{font-size:11.5px;color:var(--text-3);display:flex;align-items:center;gap:5px}
+.footer-btn{
+  width:100%;display:flex;align-items:center;gap:7px;
+  padding:7px 10px;background:none;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  color:var(--text-2);font-size:12px;
+  transition:all .13s;text-align:left;
+}
+.footer-btn:hover{background:var(--bg-muted);border-color:var(--border-md);color:var(--text)}
+
+/* Switch */
+.sw{position:relative;width:34px;height:19px;flex-shrink:0;cursor:pointer;display:block}
+.sw input{opacity:0;width:0;height:0;position:absolute}
+.sw-track{position:absolute;inset:0;background:var(--border-md);border-radius:99px;transition:background .2s}
+.sw input:checked+.sw-track{background:var(--blue)}
+.sw-knob{position:absolute;top:2px;left:2px;width:15px;height:15px;background:#fff;border-radius:50%;transition:transform .17s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.sw input:checked~.sw-knob{transform:translateX(15px)}
+
+/* Lang toggle */
+.lang-seg{display:flex;background:var(--bg-muted);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;font-size:11px;font-weight:600}
+.lang-opt{padding:3px 9px;cursor:pointer;color:var(--text-3);transition:all .13s;user-select:none}
+.lang-opt.active{background:var(--blue);color:#fff}
+
+/* ── Main ── */
+.main{flex:1;overflow-y:auto;display:flex;flex-direction:column;background:var(--bg);transition:background .2s}
+.page{display:none;flex:1;flex-direction:column}
+.page.active{display:flex}
+
+.page-header{
+  padding:0 32px;height:var(--header-h);
+  background:var(--bg);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:20;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  backdrop-filter:blur(8px);
+  transition:background .2s,border-color .2s;
+}
+.page-title{font-size:15px;font-weight:600;letter-spacing:-.02em}
+.page-desc{font-size:12.5px;color:var(--text-3);margin-top:1px}
+.page-body{padding:24px 32px;flex:1}
+
+/* ═══════════════════════════════════════
+   COMPONENTS
+═══════════════════════════════════════ */
+
+/* Card */
+.card{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-md);padding:18px 20px;
+  margin-bottom:14px;box-shadow:var(--shadow-xs);
+  transition:background .2s,border-color .2s;
+}
+.card-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:14px;
+}
+.card-title{font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em}
+
+/* Buttons */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  padding:8px 14px;border-radius:var(--radius-sm);
+  border:1px solid var(--border-md);background:var(--bg);
+  color:var(--text);font-size:13px;font-weight:500;
+  transition:all .13s;white-space:nowrap;line-height:1;
+}
+.btn:hover{background:var(--bg-soft);border-color:var(--border-md)}
+.btn-primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn-primary:hover{background:var(--blue-text);border-color:var(--blue-text)}
+.btn-success{background:var(--green-dk);color:#fff;border-color:var(--green-dk)}
+.btn-success:hover{opacity:.88}
+.btn-danger{background:var(--red-bg);color:var(--red-text);border-color:transparent}
+.btn-danger:hover{background:#fee2e2}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--text-2)}
+.btn-ghost:hover{background:var(--bg-muted);color:var(--text)}
+.btn-sm{padding:5px 10px;font-size:12px;border-radius:var(--radius-sm)}
+.btn-xs{padding:3px 8px;font-size:11px;border-radius:5px}
+.btn-full{width:100%}
+.btn-group{display:flex;gap:6px;flex-wrap:wrap}
+.btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+[data-theme="dark"] .btn{background:var(--bg-soft)}
+[data-theme="dark"] .btn:hover{background:var(--bg-muted)}
+[data-theme="dark"] .btn-primary{background:var(--blue);color:#fff}
+
+/* Form */
+label{font-size:12px;font-weight:500;color:var(--text-2);display:block;margin-bottom:5px}
+.field-hint{font-size:11px;color:var(--text-3);margin-top:3px}
+input[type=text],input[type=password],textarea,select{
+  width:100%;padding:8px 12px;
+  background:var(--bg);border:1px solid var(--border-md);
+  border-radius:var(--radius-sm);color:var(--text);
+  font-size:13px;outline:none;
+  transition:border-color .13s,box-shadow .13s,background .2s,color .2s;
+}
+input[type=text]:focus,input[type=password]:focus,textarea:focus,select:focus{
+  border-color:var(--blue);
+  box-shadow:0 0 0 3px rgba(37,99,235,.12);
+}
+textarea{resize:vertical;min-height:80px;line-height:1.6}
+.field{flex:1}
+.row{display:flex;gap:10px;margin-bottom:12px;align-items:flex-end;flex-wrap:wrap}
+
+/* Badge */
+.badge{
+  display:inline-flex;align-items:center;
+  padding:2px 8px;border-radius:99px;
+  font-size:11px;font-weight:500;white-space:nowrap;
+}
+.b-pending  {background:var(--bg-muted);color:var(--text-3)}
+.b-planned  {background:var(--blue-bg);color:var(--blue-text)}
+.b-done     {background:var(--green-bg);color:var(--green-text)}
+.b-core     {background:var(--purple-bg);color:var(--purple-text);border:1px solid #e9d5ff}
+.b-long     {background:var(--blue-bg);color:var(--blue-text);border:1px solid #bfdbfe}
+.b-scene    {background:var(--orange-bg);color:var(--orange-text);border:1px solid #fed7aa}
+.b-customer {background:var(--amber-bg);color:var(--amber-text);border:1px solid #fde68a}
+.b-question {background:var(--green-bg);color:var(--green-text);border:1px solid #a7f3d0}
+.b-compete  {background:var(--pink-bg);color:var(--pink-text);border:1px solid #fbcfe8}
+.b-brand    {background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd}
+[data-theme="dark"] .b-core   {background:#1e0d3f;border-color:#4c1d95}
+[data-theme="dark"] .b-long   {background:var(--blue-bg);border-color:#1e3a8a}
+[data-theme="dark"] .b-scene  {background:var(--orange-bg);border-color:#7c2d12}
+[data-theme="dark"] .b-customer{background:var(--amber-bg);border-color:#78350f}
+[data-theme="dark"] .b-question{background:var(--green-bg);border-color:#064e3b}
+[data-theme="dark"] .b-compete {background:var(--pink-bg);border-color:#831843}
+[data-theme="dark"] .b-brand  {background:#0c1a27;border-color:#075985;color:#38bdf8}
+
+/* Chip (selectable tag) */
+.chip{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:5px 12px;border-radius:99px;font-size:12px;font-weight:500;
+  border:1.5px solid var(--border-md);color:var(--text-2);
+  background:var(--bg);cursor:pointer;
+  transition:all .13s;margin:2px;user-select:none;
+}
+.chip:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-bg)}
+.chip.sel{background:var(--blue-bg);border-color:var(--blue);color:var(--blue);font-weight:600}
+.chip.is-new::after{
+  content:'新';font-size:9px;
+  background:var(--green-bg);color:var(--green-text);
+  padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:700;
+}
+
+/* Alert */
+.alert{padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:12px;line-height:1.6}
+.alert-warn  {background:var(--amber-bg);color:var(--amber-text);border:1px solid #fde68a}
+.alert-info  {background:var(--blue-bg);color:var(--blue-text);border:1px solid #bfdbfe}
+.alert-success{background:var(--green-bg);color:var(--green-text);border:1px solid #a7f3d0}
+.alert-error {background:var(--red-bg);color:var(--red-text);border:1px solid #fecaca}
+
+/* Modal */
+.overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(15,17,23,.5);z-index:200;
+  align-items:center;justify-content:center;
+  backdrop-filter:blur(3px);
+}
+.overlay.open{display:flex}
+.modal{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:26px;
+  width:540px;max-width:94vw;
+  box-shadow:var(--shadow-lg);
+  max-height:92vh;overflow-y:auto;
+  transition:background .2s,border-color .2s;
+}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:4px}
+.modal-desc{font-size:13px;color:var(--text-2);margin-bottom:20px;line-height:1.6}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+
+/* API Key guidance box */
+.api-guide{
+  background:var(--bg-soft);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:12px 14px;
+  margin-top:8px;font-size:12px;color:var(--text-2);line-height:1.8;
+}
+.api-guide strong{color:var(--text);font-weight:600}
+.api-guide a{color:var(--blue);font-weight:500}
+.api-guide-step{display:flex;align-items:flex-start;gap:8px;margin-bottom:4px}
+.api-guide-step:last-child{margin-bottom:0}
+.step-num{
+  width:18px;height:18px;border-radius:50%;
+  background:var(--blue);color:#fff;
+  font-size:10px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;
+}
+
+/* Table */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{
+  font-size:11px;font-weight:600;color:var(--text-3);
+  text-transform:uppercase;letter-spacing:.06em;
+  padding:9px 12px;border-bottom:1px solid var(--border);
+  background:var(--bg-soft);text-align:left;white-space:nowrap;
+}
+.tbl td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover td{background:var(--bg-soft)}
+.tbl-wrap{border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;background:var(--bg);box-shadow:var(--shadow-xs)}
+
+/* Stats row */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+.stat-card{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-md);padding:16px;
+  box-shadow:var(--shadow-xs);transition:background .2s,border-color .2s;
+}
+.stat-num{font-size:26px;font-weight:700;letter-spacing:-.03em;font-family:'JetBrains Mono',monospace;line-height:1}
+.stat-label{font-size:11px;color:var(--text-2);margin-top:5px;font-weight:500}
+.stat-sub{font-size:10px;color:var(--text-3);margin-top:2px}
+
+/* Progress */
+.prog-bar{height:4px;background:var(--bg-muted);border-radius:99px;overflow:hidden;margin-top:8px}
+.prog-fill{height:100%;background:var(--blue);border-radius:99px;transition:width .4s}
+
+/* Search bar */
+.search-bar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.search-bar input{flex:1;min-width:180px}
+.search-bar select{min-width:120px}
+
+/* Kw row */
+.kw-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+.kw-row:last-child{border-bottom:none}
+.kw-name{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Art card */
+.art-card{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-md);padding:16px 20px;
+  margin-bottom:10px;box-shadow:var(--shadow-xs);
+  transition:border-color .13s,background .2s;
+}
+.art-card:hover{border-color:var(--border-md)}
+.a-chip{
+  font-size:11px;padding:2px 8px;border-radius:4px;
+  background:var(--blue-bg);color:var(--blue-text);
+  display:inline-block;margin:2px;font-weight:500;
+}
+
+/* Deploy row */
+.deploy-detail{background:var(--bg-soft);border-radius:var(--radius-sm);padding:10px 14px;margin-top:10px;border:1px solid var(--border)}
+.deploy-row{display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+.deploy-row:last-child{border-bottom:none}
+.deploy-pos{font-size:11px;background:var(--purple-bg);color:var(--purple-text);padding:2px 8px;border-radius:4px;white-space:nowrap;flex-shrink:0;font-weight:500}
+
+/* Diff badge */
+.diff-low {color:var(--green-text);background:var(--green-bg);font-size:11px;padding:2px 7px;border-radius:4px;font-weight:500}
+.diff-mid {color:var(--amber-text);background:var(--amber-bg);font-size:11px;padding:2px 7px;border-radius:4px;font-weight:500}
+.diff-high{color:var(--red-text);background:var(--red-bg);font-size:11px;padding:2px 7px;border-radius:4px;font-weight:500}
+
+/* Divider */
+.divider{height:1px;background:var(--border);margin:16px 0}
+.divider-label{display:flex;align-items:center;gap:8px;margin:14px 0;font-size:11px;color:var(--text-3)}
+.divider-label::before,.divider-label::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* Empty / Loading */
+.empty{text-align:center;padding:48px 20px;color:var(--text-3);font-size:13px;line-height:2}
+.loading-dot::after{content:'';animation:ldot 1.2s steps(3,end) infinite}
+@keyframes ldot{0%{content:'.'}33%{content:'..'}66%{content:'...'}}
+
+/* Toast */
+#toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(12px);
+  background:var(--text);color:var(--bg);padding:9px 18px;
+  border-radius:var(--radius);font-size:13px;font-weight:500;
+  z-index:9999;opacity:0;pointer-events:none;
+  transition:opacity .22s,transform .22s;
+  box-shadow:var(--shadow-md);white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Mobile hamburger */
+.hamburger{
+  display:none;position:fixed;top:14px;left:14px;z-index:300;
+  width:36px;height:36px;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  align-items:center;justify-content:center;
+  box-shadow:var(--shadow-sm);cursor:pointer;
+  transition:background .13s;
+}
+.hamburger:hover{background:var(--bg-soft)}
+.hamburger svg{width:16px;height:16px;stroke:var(--text-2)}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.page-body{animation:fadeUp .18s ease}
+
+@media(max-width:768px){
+  .sidebar{
+    position:fixed;inset:0 auto 0 0;z-index:250;
+    transform:translateX(-100%);transition:transform .2s;
+  }
+  .sidebar.open{transform:translateX(0)}
+  .backdrop{display:block!important}
+  .hamburger{display:flex}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .page-header{padding:0 16px 0 56px}
+  .page-body{padding:16px}
+}
+.backdrop{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.35);z-index:249;
+  backdrop-filter:blur(2px);
+}
+
+/* ═══════════════════════════════════════
+   CONFIG MODAL - API KEY SECTION STYLES
+═══════════════════════════════════════ */
+.key-input-wrap{position:relative}
+.key-input-wrap input{padding-right:40px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.key-toggle{
+  position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--text-3);cursor:pointer;
+  padding:2px;display:flex;align-items:center;
+}
+.key-toggle:hover{color:var(--text-2)}
+.key-status{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:11px;font-weight:600;margin-top:5px;
+}
+.key-ok{color:var(--green-text)}.key-no{color:var(--red-text)}
+
+/* Matrix grid */
+.matrix-col{background:var(--bg-soft);border-radius:var(--radius-sm);padding:10px;min-height:60px}
+.matrix-kw-item{font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);color:var(--text)}
+.matrix-kw-item:last-child{border-bottom:none}
+
+/* Bulk bar */
+#bulk-bar{
+  display:none;align-items:center;gap:8px;
+  padding:8px 12px;margin-bottom:12px;
+  background:var(--blue-bg);border:1px solid #bfdbfe;
+  border-radius:var(--radius-sm);
+}
+[data-theme="dark"] #bulk-bar{border-color:var(--blue-bg)}
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+<div class="backdrop" id="backdrop" onclick="closeSidebar()"></div>
+<button class="hamburger" onclick="openSidebar()" title="打开菜单">
+  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+
+<div class="app">
+<!-- ════════════════════════ SIDEBAR ════════════════════════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-logo-icon">
+      <svg viewBox="0 0 20 20"><path d="M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z"/></svg>
+    </div>
+    <div>
+      <div class="sidebar-logo-text" data-i18n="appName">关键词矩阵</div>
+      <div class="sidebar-logo-sub" data-i18n="appSub">内容部署闭环系统</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-group-label" data-i18n="navAI">AI 工具</div>
+    <div class="nav-item active" data-page="recommend" onclick="showPage('recommend')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      <span data-i18n="navRecommend">关键词推荐</span>
+    </div>
+    <div class="nav-item" data-page="analyze" onclick="showPage('analyze')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <span data-i18n="navAnalyze">关键词分析</span>
+    </div>
+
+    <div class="nav-group-label" data-i18n="navManage">管理</div>
+    <div class="nav-item" data-page="library" onclick="showPage('library')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      <span data-i18n="navLibrary">关键词库</span>
+      <span class="nav-badge" id="nb-lib">0</span>
+    </div>
+    <div class="nav-item" data-page="articles" onclick="showPage('articles')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <span data-i18n="navArticles">文章追踪</span>
+      <span class="nav-badge" id="nb-art">0</span>
+    </div>
+    <div class="nav-item" data-page="import" onclick="showPage('import')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+      <span data-i18n="navImport">批量导入</span>
+    </div>
+
+    <div class="nav-group-label" data-i18n="navOverview">概览</div>
+    <div class="nav-item" data-page="dashboard" onclick="showPage('dashboard')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      <span data-i18n="navDashboard">部署进度</span>
+    </div>
+    <div class="nav-item" data-page="matrix" onclick="showPage('matrix')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+      <span data-i18n="navMatrix">矩阵视图</span>
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="footer-row">
+      <span class="footer-label">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        <span data-i18n="darkMode">深色模式</span>
+      </span>
+      <label class="sw"><input type="checkbox" id="dark-tog" onchange="toggleDark(this.checked)"/><div class="sw-track"></div><div class="sw-knob"></div></label>
+    </div>
+    <div class="footer-row">
+      <span class="footer-label">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        <span data-i18n="langLabel">语言</span>
+      </span>
+      <div class="lang-seg">
+        <span class="lang-opt active" id="lopt-zh" onclick="setLang('zh')">中</span>
+        <span class="lang-opt" id="lopt-en" onclick="setLang('en')">EN</span>
+      </div>
+    </div>
+    <button class="footer-btn" onclick="openConfig()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span data-i18n="cfgBtn">配置 API 密钥</span>
+    </button>
+    <button class="footer-btn" onclick="exportData()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span data-i18n="exportBtn">导出数据</span>
+    </button>
+  </div>
+</aside>
+
+<!-- ════════════════════════ MAIN ════════════════════════ -->
+<main class="main">
+
+  <!-- RECOMMEND -->
+  <div id="page-recommend" class="page active">
+    <div class="page-header">
+      <div><div class="page-title" data-i18n="navRecommend">关键词推荐</div><div class="page-desc" data-i18n="recDesc">输入文章标题，AI 分析推荐关键词组合</div></div>
+    </div>
+    <div class="page-body">
+      <div id="api-warn" class="alert alert-warn" style="display:none" data-i18n="apiWarn">⚠ 尚未配置 API Key，请点击左侧「配置 API 密钥」</div>
+      <div class="card">
+        <div class="card-header"><div class="card-title" data-i18n="articleInfo">文章信息</div></div>
+        <div class="row">
+          <div class="field"><label data-i18n="titleLabel">文章标题 *</label><input type="text" id="inp-title" data-i18n-ph="titlePh"/></div>
+        </div>
+        <div class="row">
+          <div class="field"><label data-i18n="contextLabel">行业背景（可选）</label><input type="text" id="inp-context" data-i18n-ph="contextPh"/></div>
+          <div class="field" style="max-width:140px"><label data-i18n="countLabel">推荐数量</label>
+            <select id="inp-count"><option value="8">8 个</option><option value="12" selected>12 个</option><option value="15">15 个</option><option value="20">20 个</option></select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field"><label data-i18n="typeLabel">重点覆盖类型</label>
+            <div style="margin-top:4px" id="type-sel">
+              <span class="chip sel" onclick="this.classList.toggle('sel')" data-i18n="t_core">核心词</span>
+              <span class="chip sel" onclick="this.classList.toggle('sel')" data-i18n="t_long">长尾词</span>
+              <span class="chip sel" onclick="this.classList.toggle('sel')" data-i18n="t_scene">场景词</span>
+              <span class="chip sel" onclick="this.classList.toggle('sel')" data-i18n="t_customer">客户画像</span>
+              <span class="chip" onclick="this.classList.toggle('sel')" data-i18n="t_question">问答词</span>
+              <span class="chip" onclick="this.classList.toggle('sel')" data-i18n="t_compete">竞品词</span>
+              <span class="chip" onclick="this.classList.toggle('sel')" data-i18n="t_brand">品牌词</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" id="btn-rec" onclick="doRecommend()" style="margin-top:4px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <span data-i18n="recBtn">AI 推荐关键词</span>
+        </button>
+      </div>
+      <div id="rec-output"></div>
+    </div>
+  </div>
+
+  <!-- ANALYZE -->
+  <div id="page-analyze" class="page">
+    <div class="page-header">
+      <div><div class="page-title" data-i18n="navAnalyze">关键词分析</div><div class="page-desc" data-i18n="anaDesc">AI 深度分析搜索意图、竞争难度、内容建议</div></div>
+    </div>
+    <div class="page-body">
+      <div class="card">
+        <div class="row"><div class="field"><label data-i18n="anaKwLabel">要分析的关键词 *</label><input type="text" id="ana-kw" data-i18n-ph="anaKwPh"/></div></div>
+        <div class="row"><div class="field"><label data-i18n="anaCtxLabel">行业背景（可选）</label><input type="text" id="ana-ctx" data-i18n-ph="anaCtxPh"/></div></div>
+        <button class="btn btn-primary btn-full" id="btn-ana" onclick="doAnalyze()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <span data-i18n="anaBtn">深度分析</span>
+        </button>
+      </div>
+      <div id="ana-output"></div>
+    </div>
+  </div>
+
+  <!-- LIBRARY -->
+  <div id="page-library" class="page">
+    <div class="page-header">
+      <div><div class="page-title" data-i18n="navLibrary">关键词库</div><div class="page-desc" data-i18n="libDesc">所有关键词集中管理</div></div>
+      <button class="btn btn-primary btn-sm" onclick="openAddKw()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span data-i18n="addKwBtn">添加</span>
+      </button>
+    </div>
+    <div class="page-body">
+      <div id="add-kw-panel" style="display:none" class="card">
+        <div class="card-header"><div class="card-title" data-i18n="addKwBtn">添加关键词</div></div>
+        <div class="row">
+          <div class="field"><label data-i18n="kwLabel">关键词 *</label><input type="text" id="new-kw" data-i18n-ph="kwPh"/></div>
+          <div class="field" style="max-width:130px"><label data-i18n="typeCol">类型</label>
+            <select id="new-kw-type">
+              <option data-i18n="t_core">核心词</option><option data-i18n="t_long">长尾词</option>
+              <option data-i18n="t_scene">场景词</option><option data-i18n="t_customer">客户画像</option>
+              <option data-i18n="t_question">问答词</option><option data-i18n="t_compete">竞品词</option>
+              <option data-i18n="t_brand">品牌词</option>
+            </select>
+          </div>
+          <div class="field" style="max-width:110px"><label data-i18n="priCol">优先级</label>
+            <select id="new-kw-pri">
+              <option value="高" data-i18n="p_high">高</option>
+              <option value="中" selected data-i18n="p_mid">中</option>
+              <option value="低" data-i18n="p_low">低</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" style="margin-bottom:0" onclick="addKwManual()" data-i18n="addBtn">添加</button>
+          <button class="btn btn-sm" style="margin-bottom:0" onclick="closeAddKw()" data-i18n="cancelBtn">取消</button>
+        </div>
+        <div class="row"><div class="field"><label data-i18n="noteLabel">备注（可选）</label><input type="text" id="new-kw-note" data-i18n-ph="notePh"/></div></div>
+      </div>
+
+      <div class="search-bar">
+        <input type="text" id="lib-search" data-i18n-ph="searchPh" oninput="debouncedRenderLibrary()"/>
+        <select id="lib-filter" onchange="renderLibrary()">
+          <option value="" data-i18n="allStatus">全部状态</option>
+          <option value="pending" data-i18n="s_pending">未分配</option>
+          <option value="planned" data-i18n="s_planned">已规划</option>
+          <option value="done" data-i18n="s_done">已发布</option>
+        </select>
+        <select id="lib-type" onchange="renderLibrary()">
+          <option value="" data-i18n="allTypes">全部类型</option>
+          <option data-i18n="t_core">核心词</option><option data-i18n="t_long">长尾词</option>
+          <option data-i18n="t_scene">场景词</option><option data-i18n="t_customer">客户画像</option>
+          <option data-i18n="t_question">问答词</option><option data-i18n="t_compete">竞品词</option>
+          <option data-i18n="t_brand">品牌词</option>
+        </select>
+        <select id="lib-sort" onchange="renderLibrary()">
+          <option value="default" data-i18n="sortDefault">默认</option>
+          <option value="alpha" data-i18n="sortAlpha">字母</option>
+          <option value="type" data-i18n="sortType">类型</option>
+        </select>
+      </div>
+
+      <div id="bulk-bar">
+        <span id="sel-count" style="font-size:13px;color:var(--blue-text);font-weight:500"></span>
+        <button class="btn btn-sm btn-primary" onclick="bulkPlan()" data-i18n="bulkPlan">批量规划</button>
+        <button class="btn btn-sm btn-danger" onclick="bulkDelete()" data-i18n="bulkDelete">批量删除</button>
+        <button class="btn btn-sm btn-ghost" onclick="clearSelection()">✕</button>
+      </div>
+
+      <div class="tbl-wrap">
+        <table class="tbl" id="lib-head-tbl"><thead><tr>
+          <th style="width:36px"><input type="checkbox" id="check-all" onchange="toggleCheckAll(this)"/></th>
+          <th data-i18n="kwLabel">关键词</th><th data-i18n="typeCol">类型</th>
+          <th data-i18n="statusCol">状态</th><th data-i18n="priCol">优先级</th>
+          <th data-i18n="articleCol">关联文章</th><th data-i18n="posCol">位置</th>
+          <th data-i18n="noteCol">备注</th><th data-i18n="actCol">操作</th>
+        </tr></thead></table>
+        <div id="lib-list"><div class="empty" data-i18n="loading">加载中…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ARTICLES -->
+  <div id="page-articles" class="page">
+    <div class="page-header">
+      <div><div class="page-title" data-i18n="navArticles">文章追踪</div><div class="page-desc" data-i18n="artDesc">关键词覆盖与发布状态追踪</div></div>
+      <button class="btn btn-sm" onclick="openAddArt()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span data-i18n="addArtBtn">手动添加</span>
+      </button>
+    </div>
+    <div class="page-body">
+      <div id="add-art-panel" style="display:none" class="card">
+        <div class="card-header"><div class="card-title" data-i18n="addArtTitle">手动添加文章</div></div>
+        <div class="row"><div class="field"><label data-i18n="artTitleLabel">文章标题 *</label><input type="text" id="new-art-title"/></div></div>
+        <div class="row"><div class="field"><label data-i18n="artKwsLabel">关联关键词（逗号分隔）</label><input type="text" id="new-art-kws" data-i18n-ph="artKwsPh"/></div></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-sm" onclick="closeAddArt()" data-i18n="cancelBtn">取消</button>
+          <button class="btn btn-primary btn-sm" onclick="addArtManual()" data-i18n="addBtn">添加</button>
+        </div>
+      </div>
+      <div id="articles-list"></div>
+      <div class="empty" id="articles-empty" style="display:none" data-i18n="artEmpty">暂无文章记录</div>
+    </div>
+  </div>
+
+  <!-- IMPORT -->
+  <div id="page-import" class="page">
+    <div class="page-header">
+      <div><div class="page-title" data-i18n="navImport">批量导入</div><div class="page-desc" data-i18n="importDesc">文本批量导入关键词到总库</div></div>
+    </div>
+    <div class="page-body">
+      <div class="card">
+        <div class="card-header"><div class="card-title" data-i18n="textImport">文本导入</div></div>
+        <label data-i18n="importHint">每行一个关键词，格式：关键词,类型,备注</label>
+        <textarea id="import-text" style="margin-top:8px;min-height:180px;font-family:'JetBrains Mono',monospace;font-size:12px" data-i18n-ph="importPh"></textarea>
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap">
+          <select id="import-default-type">
+            <option value="长尾词" data-i18n="defLong">默认：长尾词</option>
+            <option value="核心词" data-i18n="defCore">默认：核心词</option>
+            <option value="场景词" data-i18n="defScene">默认：场景词</option>
+            <option value="客户画像" data-i18n="defCustomer">默认：客户画像</option>
+          </select>
+          <button class="btn btn-primary" onclick="doImport()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+            <span data-i18n="importBtn">导入</span>
+          </button>
+          <span id="import-result" style="font-size:13px;color:var(--green-text)"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title" data-i18n="templates">快速模板</div></div>
+        <p style="font-size:13px;color:var(--text-2);margin-bottom:12px" data-i18n="templateHint">点击加载行业模板，快速填充关键词</p>
+        <div class="btn-group">
+          <button class="btn btn-sm" onclick="loadTemplate('iot')" data-i18n="tpl_iot">工业物联网</button>
+          <button class="btn btn-sm" onclick="loadTemplate('mfg')" data-i18n="tpl_mfg">智能制造</button>
+          <button class="btn btn-sm" onclick="loadTemplate('sec')" data-i18n="tpl_sec">网络安全</button>
+          <button class="btn btn-sm" onclick="loadTemplate('auto')" data-i18n="tpl_auto">工厂自动化</button>
+          <button class="btn btn-sm" onclick="loadTemplate('cloud')" data-i18n="tpl_cloud">工业云平台</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="page-dashboard" class="page">
+    <div class="page-header">
+      <div><div class="page-title" data-i18n="navDashboard">部署进度</div><div class="page-desc" data-i18n="dashDesc">关键词覆盖全局视图</div></div>
+    </div>
+    <div class="page-body">
+      <div class="stats-row" id="dash-stats"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+        <div class="card"><div class="card-header"><div class="card-title" data-i18n="byType">类型进度</div></div><div id="type-progress"></div></div>
+        <div class="card"><div class="card-header"><div class="card-title" data-i18n="byPri">优先级分布</div></div><div id="pri-progress"></div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="card"><div class="card-header"><div class="card-title" data-i18n="recentArts">最近文章</div></div><div id="recent-arts"></div></div>
+        <div class="card"><div class="card-header"><div class="card-title" data-i18n="pendingTop">待分配 Top 10</div></div><div id="pending-kws"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MATRIX -->
+  <div id="page-matrix" class="page">
+    <div class="page-header">
+      <div><div class="page-title" data-i18n="navMatrix">矩阵视图</div><div class="page-desc" data-i18n="matrixDesc">按类型 × 状态查看关键词分布</div></div>
+    </div>
+    <div class="page-body"><div id="matrix-view"></div></div>
+  </div>
+
+</main>
+</div>
+
+<!-- ════════════════════════ CONFIG MODAL ════════════════════════ -->
+<div class="overlay" id="cfg-modal">
+  <div class="modal" style="width:600px">
+    <div class="modal-title" data-i18n="cfgTitle">配置 API 密钥</div>
+    <div class="modal-desc" data-i18n="cfgDesc">所有密钥仅保存在浏览器本地（localStorage），不会上传任何服务器。</div>
+
+    <!-- Gemini -->
+    <label style="margin-bottom:6px">
+      Gemini API Key
+      <span style="font-size:11px;font-weight:400;color:var(--text-3);margin-left:6px" data-i18n="cfgGeminiTag">Google · 免费配额</span>
+    </label>
+    <div class="key-input-wrap">
+      <input type="password" id="cfg-gemini" placeholder="AIza..."/>
+      <button class="key-toggle" onclick="toggleKeyVis('cfg-gemini',this)" title="显示/隐藏">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+    <div class="api-guide">
+      <strong data-i18n="getKeyTitle">如何获取 Gemini API Key：</strong>
+      <div class="api-guide-step"><div class="step-num">1</div><div>访问 <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>，使用 Google 账号登录</div></div>
+      <div class="api-guide-step"><div class="step-num">2</div><div>点击「Create API key」→ 选择项目（新建或已有）→ 复制 Key</div></div>
+      <div class="api-guide-step"><div class="step-num">3</div><div>Key 格式：<code style="background:var(--bg-muted);padding:1px 5px;border-radius:3px">AIza</code> 开头，约 39 字符。免费额度：gemini-2.0-flash 每分钟 15 次请求</div></div>
+    </div>
+    <div style="height:14px"></div>
+
+    <!-- 阿里 -->
+    <label style="margin-bottom:6px">
+      阿里百炼 API Key
+      <span style="font-size:11px;font-weight:400;color:var(--text-3);margin-left:6px" data-i18n="cfgAliTag">100万 token/月免费 · 国内直连</span>
+    </label>
+    <div class="key-input-wrap">
+      <input type="password" id="cfg-ali" placeholder="sk-..."/>
+      <button class="key-toggle" onclick="toggleKeyVis('cfg-ali',this)" title="显示/隐藏">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+    <div class="api-guide">
+      <strong data-i18n="getAliKeyTitle">如何获取阿里百炼 API Key：</strong>
+      <div class="api-guide-step"><div class="step-num">1</div><div>访问 <a href="https://bailian.console.aliyun.com/" target="_blank">bailian.console.aliyun.com</a>，使用阿里云账号登录</div></div>
+      <div class="api-guide-step"><div class="step-num">2</div><div>左侧菜单「API-KEY」→「创建 API Key」→ 复制</div></div>
+      <div class="api-guide-step"><div class="step-num">3</div><div>Key 格式：<code style="background:var(--bg-muted);padding:1px 5px;border-radius:3px">sk-</code> 开头。新用户赠送 100 万 tokens/月，无需翻墙</div></div>
+    </div>
+    <div style="height:14px"></div>
+
+    <!-- 优先级 -->
+    <label style="margin-bottom:6px" data-i18n="preferLabel">优先使用模型</label>
+    <select id="prefer-model-sel">
+      <option value="gemini" data-i18n="preferGemini">优先 Gemini（用完自动切换阿里）</option>
+      <option value="ali" data-i18n="preferAli">优先阿里 Qwen</option>
+      <option value="both" data-i18n="preferBoth">智能切换（优先响应快的）</option>
+    </select>
+
+    <div class="divider-label" data-i18n="optSupabase">可选 · Supabase 云数据库</div>
+
+    <!-- Supabase -->
+    <div class="api-guide" style="margin-bottom:12px">
+      <strong>配置 Supabase 后数据将同步到云端（可选）：</strong>
+      <div class="api-guide-step"><div class="step-num">1</div><div>访问 <a href="https://supabase.com" target="_blank">supabase.com</a> → 创建免费项目</div></div>
+      <div class="api-guide-step"><div class="step-num">2</div><div>Project Settings → API → 复制「Project URL」和「anon public」Key</div></div>
+      <div class="api-guide-step"><div class="step-num">3</div><div>在 SQL Editor 执行建表语句：<br><code style="background:var(--bg-muted);padding:4px 8px;border-radius:3px;display:inline-block;margin-top:4px;font-size:11px">create table keywords (id serial primary key, kw text, type text, status text, article text, position text, priority text, note text);<br>create table articles (id serial primary key, title text, keywords text[], status text);</code></div></div>
+    </div>
+    <div class="row"><div class="field"><label>Supabase URL</label><input type="text" id="cfg-sb-url" placeholder="https://xxxx.supabase.co"/></div></div>
+    <div class="row"><div class="field"><label>Supabase Anon Key</label><input type="text" id="cfg-sb-key" placeholder="eyJ..."/></div></div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="closeConfig()" data-i18n="cancelBtn">取消</button>
+      <button class="btn btn-primary" onclick="saveConfig()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        <span data-i18n="saveBtn">保存配置</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT KW MODAL -->
+<div class="overlay" id="edit-modal">
+  <div class="modal" style="width:480px">
+    <div class="modal-title" data-i18n="editKw">编辑关键词</div>
+    <div style="height:16px"></div>
+    <div class="row"><div class="field"><label data-i18n="kwLabel">关键词</label><input type="text" id="edit-kw"/></div></div>
+    <div class="row">
+      <div class="field"><label data-i18n="typeCol">类型</label>
+        <select id="edit-type"><option data-i18n="t_core">核心词</option><option data-i18n="t_long">长尾词</option><option data-i18n="t_scene">场景词</option><option data-i18n="t_customer">客户画像</option><option data-i18n="t_question">问答词</option><option data-i18n="t_compete">竞品词</option><option data-i18n="t_brand">品牌词</option></select>
+      </div>
+      <div class="field"><label data-i18n="priCol">优先级</label>
+        <select id="edit-pri"><option value="高" data-i18n="p_high">高</option><option value="中" data-i18n="p_mid">中</option><option value="低" data-i18n="p_low">低</option></select>
+      </div>
+    </div>
+    <div class="row"><div class="field"><label data-i18n="posLabel">部署位置</label><input type="text" id="edit-pos" data-i18n-ph="posPh"/></div></div>
+    <div class="row"><div class="field"><label data-i18n="noteCol">备注</label><input type="text" id="edit-note" data-i18n-ph="notePh"/></div></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeEditModal()" data-i18n="cancelBtn">取消</button>
+      <button class="btn btn-primary" onclick="saveEditModal()" data-i18n="saveBtn2">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// i18n
+// ═══════════════════════════════════════
+const STRINGS={
+zh:{
+  appName:'关键词矩阵',appSub:'内容部署闭环系统',
+  navAI:'AI 工具',navRecommend:'关键词推荐',navAnalyze:'关键词分析',
+  navManage:'管理',navLibrary:'关键词库',navArticles:'文章追踪',
+  navImport:'批量导入',navOverview:'概览',navDashboard:'部署进度',navMatrix:'矩阵视图',
+  darkMode:'深色模式',langLabel:'语言',
+  cfgBtn:'配置 API 密钥',exportBtn:'导出数据',
+  cfgTitle:'配置 API 密钥',cfgDesc:'所有密钥仅保存在浏览器本地，不会上传任何服务器。',
+  cfgGeminiTag:'Google · 免费配额',cfgAliTag:'100万 token/月免费 · 国内直连',
+  getKeyTitle:'如何获取 Gemini API Key：',getAliKeyTitle:'如何获取阿里百炼 API Key：',
+  preferLabel:'优先使用模型',
+  preferGemini:'优先 Gemini（用完自动切换阿里）',preferAli:'优先阿里 Qwen',preferBoth:'智能切换',
+  optSupabase:'可选 · Supabase 云数据库',
+  recDesc:'输入文章标题，AI 分析推荐关键词组合',
+  apiWarn:'⚠ 尚未配置 API Key，请点击左侧「配置 API 密钥」',
+  articleInfo:'文章信息',titleLabel:'文章标题 *',titlePh:'例：工业路由器在智能工厂中的5大应用场景',
+  contextLabel:'行业背景（可选）',contextPh:'例：4G/5G工业路由器，目标客户：工厂IT运维',
+  countLabel:'推荐数量',typeLabel:'重点覆盖类型',recBtn:'AI 推荐关键词',
+  t_core:'核心词',t_long:'长尾词',t_scene:'场景词',t_customer:'客户画像',t_question:'问答词',t_compete:'竞品词',t_brand:'品牌词',
+  anaDesc:'AI 深度分析搜索意图、竞争难度、内容建议',
+  anaKwLabel:'要分析的关键词 *',anaKwPh:'例：工业路由器选型',
+  anaCtxLabel:'行业背景（可选）',anaCtxPh:'例：工业物联网、工厂自动化',anaBtn:'深度分析',
+  libDesc:'所有关键词集中管理',addKwBtn:'添加关键词',searchPh:'搜索关键词…',
+  allStatus:'全部状态',s_pending:'未分配',s_planned:'已规划',s_done:'已发布',allTypes:'全部类型',
+  sortDefault:'默认',sortAlpha:'字母',sortType:'类型',
+  kwLabel:'关键词',kwPh:'输入关键词',typeCol:'类型',statusCol:'状态',priCol:'优先级',
+  articleCol:'关联文章',posCol:'位置',noteCol:'备注',actCol:'操作',
+  noteLabel:'备注（可选）',notePh:'搜索意图、备注说明…',
+  addBtn:'添加',cancelBtn:'取消',p_high:'高',p_mid:'中',p_low:'低',loading:'加载中…',
+  bulkPlan:'批量规划',bulkDelete:'批量删除',
+  artDesc:'关键词覆盖与发布状态追踪',addArtBtn:'手动添加',addArtTitle:'手动添加文章',
+  artTitleLabel:'文章标题 *',artKwsLabel:'关联关键词（逗号分隔）',artKwsPh:'工业路由器,4G路由器',
+  artEmpty:'暂无文章记录',
+  importDesc:'文本批量导入关键词到总库',textImport:'文本导入',
+  importHint:'每行一个关键词，格式：关键词,类型,备注',importPh:'工业路由器,核心词\n4G工业路由器,核心词\n…',
+  defLong:'默认：长尾词',defCore:'默认：核心词',defScene:'默认：场景词',defCustomer:'默认：客户画像',
+  importBtn:'导入',templates:'快速模板',templateHint:'点击加载行业模板，快速填充关键词',
+  tpl_iot:'工业物联网',tpl_mfg:'智能制造',tpl_sec:'网络安全',tpl_auto:'工厂自动化',tpl_cloud:'工业云平台',
+  dashDesc:'关键词覆盖全局视图',byType:'类型进度',byPri:'优先级分布',recentArts:'最近文章',pendingTop:'待分配 Top 10',
+  matrixDesc:'按类型 × 状态查看关键词分布',
+  saveBtn:'保存配置',saveBtn2:'保存',editKw:'编辑关键词',posLabel:'部署位置',posPh:'标题/H2/正文/Meta',
+  titleRequired:'请输入文章标题',kwRequired:'请输入关键词',selectKwWarn:'请先选择关键词',
+  deployed:'已将 {n} 个关键词部署到「{title}」',
+  recLoading:'AI 正在分析',anaLoading:'AI 正在分析',recFail:'推荐失败：',anaFail:'分析失败：',
+  alreadyExists:'该关键词已存在',addedToLib:'已添加「{kw}」',addedAll:'已添加 {n} 个关键词',
+  alreadyInLib:'「{kw}」已在库中',cfgSaved:'配置已保存',exported:'数据已导出',
+  addedKw:'已添加',deleted:'已删除',saved:'已保存',published:'已发布',markedDone:'已标记发布',
+  imported:'导入 {n} 个关键词',importDone:'✓ 导入 {added} 个，跳过重复 {skip} 个',
+  tplLoaded:'模板已加载',selected:'已选 {n} 个',
+  confirmDelete:'确定删除选中的 {n} 个关键词？',confirmDeleteOne:'确定删除此关键词？',
+  noArticle:'暂无文章',allAssigned:'全部已分配 🎉',noData:'—',kwCount:'个',
+  statTotal:'关键词总数',statPending:'未分配',statPlanned:'已规划',statDone:'已发布',statCoverage:'覆盖率',
+  statWaiting:'待规划',statToDeploy:'待发布',statSEO:'SEO 生效',priLabel:'优先级：',
+  selectAll:'全选',clearSel:'清选',deployBtn:'🚀 部署选中关键词到此文章',
+  viewArticles:'查看文章',viewDashboard:'查看进度',continueNext:'继续下一篇',addAllRelated:'全部加入库',
+  deployed_badge:'已发布',pending_badge:'待发布',difficulty:'难',
+  searchVolume:'预估月搜索量',competeDiff:'竞争难度',searchIntent:'搜索意图',
+  targetAudience:'目标受众',deployGuide:'部署指南',
+  titleDeploy:'标题',h2:'H2',density:'密度',avoid:'注意',
+  relatedKws:'相关关键词',contentSuggestions:'内容方向建议',
+  kwCountTpl:'{n} 个关键词 · {d} 已发布 · {p}% 覆盖',
+},
+en:{
+  appName:'Keyword Matrix',appSub:'Content Deploy System',
+  navAI:'AI Tools',navRecommend:'KW Recommend',navAnalyze:'KW Analysis',
+  navManage:'Manage',navLibrary:'KW Library',navArticles:'Article Tracker',
+  navImport:'Bulk Import',navOverview:'Overview',navDashboard:'Deploy Progress',navMatrix:'Matrix View',
+  darkMode:'Dark Mode',langLabel:'Language',
+  cfgBtn:'API Keys',exportBtn:'Export',
+  cfgTitle:'API Keys Configuration',cfgDesc:'Keys are stored locally in your browser only. Never uploaded.',
+  cfgGeminiTag:'Google · Free quota',cfgAliTag:'1M token/mo free · CN direct',
+  getKeyTitle:'How to get Gemini API Key:',getAliKeyTitle:'How to get Alibaba API Key:',
+  preferLabel:'Preferred model',
+  preferGemini:'Prefer Gemini (auto fallback to Ali)',preferAli:'Prefer Alibaba Qwen',preferBoth:'Smart switch',
+  optSupabase:'Optional · Supabase Cloud DB',
+  recDesc:'Enter article title, AI recommends keywords',
+  apiWarn:'⚠ No API key configured. Click "API Keys" in the sidebar.',
+  articleInfo:'Article Info',titleLabel:'Article Title *',titlePh:'e.g. 5 Industrial Router Use Cases in Smart Factories',
+  contextLabel:'Context (optional)',contextPh:'e.g. 4G/5G industrial router, target: factory IT ops',
+  countLabel:'Count',typeLabel:'Priority Types',recBtn:'AI Recommend',
+  t_core:'Core',t_long:'Long-tail',t_scene:'Scenario',t_customer:'Persona',t_question:'Q&A',t_compete:'Competitor',t_brand:'Brand',
+  anaDesc:'AI analyzes intent, difficulty, content ideas',
+  anaKwLabel:'Keyword *',anaKwPh:'e.g. industrial router selection',
+  anaCtxLabel:'Context (optional)',anaCtxPh:'e.g. Industrial IoT',anaBtn:'Analyze',
+  libDesc:'Centralized keyword management',addKwBtn:'Add Keyword',searchPh:'Search keywords…',
+  allStatus:'All Status',s_pending:'Unassigned',s_planned:'Planned',s_done:'Published',allTypes:'All Types',
+  sortDefault:'Default',sortAlpha:'A-Z',sortType:'By Type',
+  kwLabel:'Keyword',kwPh:'Enter keyword',typeCol:'Type',statusCol:'Status',priCol:'Priority',
+  articleCol:'Article',posCol:'Position',noteCol:'Note',actCol:'Actions',
+  noteLabel:'Note (optional)',notePh:'Intent, hints…',
+  addBtn:'Add',cancelBtn:'Cancel',p_high:'High',p_mid:'Medium',p_low:'Low',loading:'Loading…',
+  bulkPlan:'Bulk Plan',bulkDelete:'Bulk Delete',
+  artDesc:'Track keyword coverage per article',addArtBtn:'Add Article',addArtTitle:'Add Article',
+  artTitleLabel:'Article Title *',artKwsLabel:'Keywords (comma separated)',artKwsPh:'industrial router, 4G router',
+  artEmpty:'No articles yet.',
+  importDesc:'Bulk add keywords via text format',textImport:'Text Import',
+  importHint:'One keyword per line. Format: keyword,type,note',importPh:'industrial router,Core\n4G router,Core\n…',
+  defLong:'Default: Long-tail',defCore:'Default: Core',defScene:'Default: Scenario',defCustomer:'Default: Persona',
+  importBtn:'Import',templates:'Templates',templateHint:'Load industry templates',
+  tpl_iot:'Industrial IoT',tpl_mfg:'Smart Mfg',tpl_sec:'Cybersecurity',tpl_auto:'Factory Auto',tpl_cloud:'Industrial Cloud',
+  dashDesc:'Global keyword coverage view',byType:'By Type',byPri:'By Priority',recentArts:'Recent Articles',pendingTop:'Top 10 Unassigned',
+  matrixDesc:'Keyword distribution by Type × Status',
+  saveBtn:'Save',saveBtn2:'Save',editKw:'Edit Keyword',posLabel:'Deploy Position',posPh:'Title/H2/Body/Meta',
+  titleRequired:'Please enter article title',kwRequired:'Please enter keyword',selectKwWarn:'Please select keywords first',
+  deployed:'Deployed {n} keywords to "{title}"',
+  recLoading:'AI analyzing',anaLoading:'AI analyzing',recFail:'Failed: ',anaFail:'Failed: ',
+  alreadyExists:'Keyword already exists',addedToLib:'Added "{kw}"',addedAll:'Added {n} keywords',
+  alreadyInLib:'"{kw}" already in library',cfgSaved:'Config saved',exported:'Exported',
+  addedKw:'Added',deleted:'Deleted',saved:'Saved',published:'Published',markedDone:'Marked published',
+  imported:'Imported {n} keywords',importDone:'✓ Imported {added}, skipped {skip}',
+  tplLoaded:'Template loaded',selected:'{n} selected',
+  confirmDelete:'Delete {n} selected keywords?',confirmDeleteOne:'Delete this keyword?',
+  noArticle:'No articles',allAssigned:'All assigned 🎉',noData:'—',kwCount:'',
+  statTotal:'Total',statPending:'Unassigned',statPlanned:'Planned',statDone:'Published',statCoverage:'Coverage',
+  statWaiting:'To Plan',statToDeploy:'To Publish',statSEO:'SEO Active',priLabel:'Priority: ',
+  selectAll:'All',clearSel:'Clear',deployBtn:'🚀 Deploy Selected Keywords',
+  viewArticles:'Articles',viewDashboard:'Dashboard',continueNext:'Next Article',addAllRelated:'Add All',
+  deployed_badge:'Published',pending_badge:'Pending',difficulty:' diff',
+  searchVolume:'Est. Monthly Searches',competeDiff:'Competition',searchIntent:'Search Intent',
+  targetAudience:'Target Audience',deployGuide:'Deploy Guide',
+  titleDeploy:'Title',h2:'H2',density:'Density',avoid:'Avoid',
+  relatedKws:'Related Keywords',contentSuggestions:'Content Suggestions',
+  kwCountTpl:'{n} keywords · {d} published · {p}% coverage',
+}};
+
+let lang=localStorage.getItem('lang')||'zh';
+function T(k,v={}){let s=(STRINGS[lang]||STRINGS.zh)[k]||k;for(const[a,b]of Object.entries(v))s=s.replace(new RegExp(`\\{${a}\\}`,'g'),b);return s;}
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.getAttribute('data-i18n');el.textContent=T(k);});
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{el.placeholder=T(el.getAttribute('data-i18n-ph'));});
+  document.getElementById('lopt-zh').classList.toggle('active',lang==='zh');
+  document.getElementById('lopt-en').classList.toggle('active',lang==='en');
+  document.documentElement.lang=lang==='zh'?'zh-CN':'en';
+  const cur=document.querySelector('.nav-item.active');
+  if(cur){const pg=cur.dataset.page;if(pg==='library')renderLibrary();if(pg==='articles')renderArticles();if(pg==='dashboard')renderDashboard();if(pg==='matrix')renderMatrix();}
+  updateBadges();
+}
+function setLang(l){lang=l;localStorage.setItem('lang',l);applyLang();}
+
+// ═══════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════
+function toggleDark(on){document.documentElement.setAttribute('data-theme',on?'dark':'');localStorage.setItem('theme',on?'dark':'light');}
+function initTheme(){
+  const saved=localStorage.getItem('theme');
+  // Default to light mode - only go dark if user explicitly chose dark
+  const dark=saved==='dark';
+  if(dark){document.documentElement.setAttribute('data-theme','dark');document.getElementById('dark-tog').checked=true;}
+}
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let kwLibrary=[],articles=[],pendingRec=[],selectedRec=new Set(),currentTitle='',sb=null;
+let editingKwIdx=null,libChecked=new Set();
+
+const TYPE_BADGE={'核心词':'b-core','长尾词':'b-long','场景词':'b-scene','客户画像':'b-customer','品牌词':'b-brand','问答词':'b-question','竞品词':'b-compete',
+  Core:'b-core','Long-tail':'b-long',Scenario:'b-scene',Persona:'b-customer',Brand:'b-brand','Q&A':'b-question',Competitor:'b-compete'};
+const PRI_STYLE={'高':'color:var(--red-text)','中':'color:var(--blue-text)','低':'color:var(--text-3)'};
+
+// ═══════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════
+function getCfg(){return{gemini:localStorage.getItem('gemini_key')||'',ali:localStorage.getItem('ali_key')||'',sbUrl:localStorage.getItem('sb_url')||'',sbKey:localStorage.getItem('sb_key')||'',preferModel:localStorage.getItem('prefer_model')||'gemini'};}
+function openConfig(){const c=getCfg();document.getElementById('cfg-gemini').value=c.gemini;document.getElementById('cfg-ali').value=c.ali;document.getElementById('cfg-sb-url').value=c.sbUrl;document.getElementById('cfg-sb-key').value=c.sbKey;document.getElementById('prefer-model-sel').value=c.preferModel;document.getElementById('cfg-modal').classList.add('open');}
+function closeConfig(){document.getElementById('cfg-modal').classList.remove('open');}
+function saveConfig(){
+  localStorage.setItem('gemini_key',document.getElementById('cfg-gemini').value.trim());
+  localStorage.setItem('ali_key',document.getElementById('cfg-ali').value.trim());
+  localStorage.setItem('sb_url',document.getElementById('cfg-sb-url').value.trim());
+  localStorage.setItem('sb_key',document.getElementById('cfg-sb-key').value.trim());
+  localStorage.setItem('prefer_model',document.getElementById('prefer-model-sel').value);
+  closeConfig();initSb();checkWarn();showToast(T('cfgSaved'));
+}
+function toggleKeyVis(id,btn){const el=document.getElementById(id);el.type=el.type==='password'?'text':'password';}
+function checkWarn(){const el=document.getElementById('api-warn');if(el){const c=getCfg();el.style.display=(c.gemini||c.ali)?'none':'block';}}
+
+// ═══════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════
+async function initSb(){const{sbUrl,sbKey}=getCfg();if(!sbUrl||!sbKey){loadLocal();return;}try{sb=window.supabase.createClient(sbUrl,sbKey);await loadRemote();}catch(e){sb=null;loadLocal();}}
+async function loadRemote(){const{data:kws}=await sb.from('keywords').select('*').order('id');const{data:arts}=await sb.from('articles').select('*').order('id');kwLibrary=kws&&kws.length?kws:getDefaults();articles=arts||[];kwLibrary.forEach(ensureUid);if(!kws||!kws.length){for(const k of getDefaults()){const{data}=await sb.from('keywords').insert({kw:k.kw,type:k.type,status:k.status,article:'',position:'',priority:k.priority||'中',note:k.note||''}).select().single();if(data)k.id=data.id;}}}
+function loadLocal(){kwLibrary=JSON.parse(localStorage.getItem('kw_lib')||'null')||getDefaults();articles=JSON.parse(localStorage.getItem('articles')||'[]');kwLibrary.forEach(ensureUid);}
+function saveLocal(){localStorage.setItem('kw_lib',JSON.stringify(kwLibrary));localStorage.setItem('articles',JSON.stringify(articles));}
+async function saveKw(k){if(sb){if(k.id&&typeof k.id==='number'){await sb.from('keywords').upsert({id:k.id,kw:k.kw,type:k.type,status:k.status,article:k.article||'',position:k.position||'',priority:k.priority||'中',note:k.note||''});}else{const{data}=await sb.from('keywords').insert({kw:k.kw,type:k.type,status:k.status,article:k.article||'',position:k.position||'',priority:k.priority||'中',note:k.note||''}).select().single();if(data)k.id=data.id;}}else saveLocal();}
+async function saveArt(a){if(sb){if(a.id&&typeof a.id==='number'){await sb.from('articles').upsert({id:a.id,title:a.title,keywords:a.keywords,status:a.status});}else{const{data}=await sb.from('articles').insert({title:a.title,keywords:a.keywords,status:a.status}).select().single();if(data)a.id=data.id;}}else saveLocal();}
+async function deleteKw(k){if(sb&&k.id&&typeof k.id==='number'){await sb.from('keywords').delete().eq('id',k.id);}else saveLocal();}
+
+function ensureUid(k){if(!k._uid)k._uid=Math.random().toString(36).slice(2);return k._uid;}
+
+// ═══════════════════════════════════════
+// DEFAULTS
+// ═══════════════════════════════════════
+function getDefaults(){return[
+  {kw:'工业路由器',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:'核心品类词'},
+  {kw:'4G工业路由器',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'5G工业路由器',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:'新兴高热词'},
+  {kw:'工业路由器选型指南',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:'决策阶段词'},
+  {kw:'工业路由器和家用路由器区别',type:'长尾词',status:'pending',article:'',position:'H2标题',priority:'高',note:'高搜索量科普词'},
+  {kw:'工厂无线网络覆盖方案',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'智能工厂网络方案',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'工厂IT运维',type:'客户画像',status:'pending',article:'',position:'正文',priority:'高',note:'核心决策人'},
+  {kw:'工业路由器怎么选',type:'问答词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'研华工业路由器',type:'竞品词',status:'pending',article:'',position:'正文',priority:'中',note:'头部竞品'},
+].map((k,i)=>({...k,_uid:'d'+i}));}
+
+// ═══════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════
+const PAGES=['recommend','analyze','library','articles','import','dashboard','matrix'];
+function showPage(name){
+  PAGES.forEach(p=>{
+    const el=document.getElementById('page-'+p);
+    if(el){el.classList.toggle('active',p===name);}
+  });
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  document.querySelector('.nav-item[data-page="'+name+'"]')?.classList.add('active');
+  if(name==='library')renderLibrary();
+  if(name==='articles')renderArticles();
+  if(name==='dashboard')renderDashboard();
+  if(name==='matrix')renderMatrix();
+  updateBadges();
+  closeSidebar();
+}
+function updateBadges(){document.getElementById('nb-lib').textContent=kwLibrary.length;document.getElementById('nb-art').textContent=articles.length;}
+
+// mobile
+function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('backdrop').style.display='block';}
+function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('backdrop').style.display='none';}
+
+// ═══════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════
+let _toastTimer=null;
+function showToast(msg,type=''){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>el.classList.remove('show'),2400);
+}
+
+// ═══════════════════════════════════════
+// DEBOUNCE
+// ═══════════════════════════════════════
+function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
+const debouncedRenderLibrary=debounce(()=>renderLibrary(),280);
+
+// ═══════════════════════════════════════
+// AI CALLS
+// ═══════════════════════════════════════
+async function callAI(prompt,temp=0.7,maxTok=2048){
+  const cfg=getCfg();const prefer=cfg.preferModel||'gemini';
+  let gErr=null,aErr=null;
+  if((prefer==='gemini'||prefer==='both')&&cfg.gemini){
+    try{const r=await callGemini(prompt,temp,maxTok);showToast('✦ Gemini');return r;}catch(e){gErr=e.message;}
+  }
+  if(cfg.ali&&(prefer==='ali'||gErr||prefer==='both')){
+    if(gErr)showToast('⚠ Gemini 超限，切换阿里…');
+    try{const r=await callAli(prompt,temp,maxTok);showToast('✦ 阿里 Qwen');return r;}catch(e){aErr=e.message;}
+  }
+  throw new Error(`所有模型均失败\nGemini: ${gErr||'未启用'}\n阿里: ${aErr||'未启用'}`);
+}
+
+async function callGemini(prompt,temperature=0.7,maxTokens=2048){
+  const key=getCfg().gemini;if(!key)throw new Error('Gemini Key 未配置');
+  // gemini-pro 已废弃，使用当前支持的模型列表
+  const models=['gemini-2.0-flash','gemini-2.0-flash-lite','gemini-1.5-flash','gemini-1.5-flash-8b'];
+  let lastErr=null;
+  for(const model of models){
+    try{
+      const res=await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+        {method:'POST',headers:{'Content-Type':'application/json'},
+         body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature,maxOutputTokens:maxTokens}})}
+      );
+      const data=await res.json();
+      if(data.error){
+        if(data.error.code===404||String(data.error.status).includes('NOT_FOUND')){lastErr=data.error.message;continue;}
+        throw new Error(data.error.message);
+      }
+      return data.candidates[0].content.parts[0].text;
+    }catch(e){
+      if(e.message&&(e.message.includes('not found')||e.message.includes('NOT_FOUND'))){lastErr=e.message;continue;}
+      throw e;
+    }
+  }
+  throw new Error('Gemini 所有模型均不可用: '+lastErr);
+}
+
+async function callAli(prompt,temperature=0.7,maxTokens=2048){
+  const key=getCfg().ali;if(!key)throw new Error('阿里 Key 未配置');
+  // 使用兼容 OpenAI 格式的接口，比旧接口 CORS 更友好
+  try{
+    const res=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
+      body:JSON.stringify({model:'qwen-turbo',messages:[{role:'user',content:prompt}],temperature,max_tokens:maxTokens})
+    });
+    if(!res.ok){const t=await res.text();throw new Error('HTTP '+res.status+': '+t);}
+    const data=await res.json();
+    if(data.error)throw new Error(data.error.message||JSON.stringify(data.error));
+    return data.choices[0].message.content;
+  }catch(e){
+    if(e.message&&(e.message.toLowerCase().includes('failed to fetch')||e.message.toLowerCase().includes('networkerror'))){
+      throw new Error('阿里 API 跨域受限（CORS）\n解决方案：用 VSCode Live Server 或本地 http-server 打开此文件，不要直接双击 file://');
+    }
+    throw e;
+  }
+}
+
+function parseAIJson(raw){
+  try{return JSON.parse(raw.replace(/```json|```/g,'').trim());}
+  catch(e){throw new Error('AI 返回格式异常，请重试。('+e.message+')');}
+}
+
+// ═══════════════════════════════════════
+// RECOMMEND
+// ═══════════════════════════════════════
+async function doRecommend(){
+  const title=document.getElementById('inp-title').value.trim();
+  const ctx=document.getElementById('inp-context').value.trim();
+  const cnt=document.getElementById('inp-count').value;
+  const types=[...document.querySelectorAll('#type-sel .chip.sel')].map(el=>el.textContent.trim());
+  const cfg=getCfg();
+  if(!title){showToast(T('titleRequired'));return;}
+  if(!cfg.gemini&&!cfg.ali){openConfig();return;}
+  currentTitle=title;selectedRec=new Set();
+  const btn=document.getElementById('btn-rec');
+  btn.disabled=true;btn.innerHTML=`<span class="loading-dot">${T('recLoading')}</span>`;
+  document.getElementById('rec-output').innerHTML=`<div class="card"><p class="loading-dot" style="color:var(--text-3)">${T('recLoading')}</p></div>`;
+  const existKws=kwLibrary.map(k=>k.kw).join('、');
+  const prompt=`你是资深SEO内容策略专家。
+文章标题：「${title}」${ctx?'\n背景：'+ctx:''}
+现有关键词库（避免重复）：${existKws}
+重点覆盖类型：${types.join('、')||'全部'}
+请推荐${cnt}个最具SEO价值的关键词。
+每个关键词包含：kw,type(核心词/长尾词/场景词/客户画像/问答词/竞品词/品牌词),position(标题/H2标题/正文/Meta),reason(15字内),difficulty(低/中/高),intent(信息型/导航型/交易型/商业调研型),isNew(boolean)
+只返回JSON：{"keywords":[{"kw":"","type":"","position":"","reason":"","difficulty":"","intent":"","isNew":true}]}`;
+  try{
+    const raw=await callAI(prompt,0.4,2048);
+    const parsed=parseAIJson(raw);
+    pendingRec=parsed.keywords||[];
+    if(!pendingRec.length)throw new Error('AI 未返回关键词，请重试');
+    renderRecOutput();
+  }catch(e){
+    document.getElementById('rec-output').innerHTML=`<div class="card"><div class="alert alert-error" style="white-space:pre-wrap">${e.message}</div></div>`;
+  }
+  btn.disabled=false;btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><span>${T('recBtn')}</span>`;
+}
+
+function renderRecOutput(){
+  const byType={};
+  pendingRec.forEach((k,i)=>{if(!byType[k.type])byType[k.type]=[];byType[k.type].push({...k,_i:i});});
+  const typeHtml=Object.entries(byType).map(([type,kws])=>`
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em">${type}</div>
+      <div>${kws.map(k=>`<span class="chip${k.isNew?' is-new':''}" id="rc${k._i}" onclick="toggleChip(${k._i})">${k.kw}</span>`).join('')}</div>
+    </div>`).join('');
+  document.getElementById('rec-output').innerHTML=`
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">${T('navRecommend')} · ${esc(currentTitle)}</div>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-xs" onclick="selectAll()">${T('selectAll')}</button>
+          <button class="btn btn-xs" onclick="selectNone()">${T('clearSel')}</button>
+        </div>
+      </div>
+      ${typeHtml}
+      <div id="rec-detail"></div>
+      <div style="margin-top:14px">
+        <button class="btn btn-primary btn-full" onclick="deploySelected()">${T('deployBtn')}</button>
+      </div>
+    </div>`;
+}
+
+function toggleChip(i){const el=document.getElementById('rc'+i);if(selectedRec.has(i)){selectedRec.delete(i);el.classList.remove('sel');}else{selectedRec.add(i);el.classList.add('sel');}renderDetail();}
+function selectAll(){pendingRec.forEach((_,i)=>{selectedRec.add(i);document.getElementById('rc'+i)?.classList.add('sel');});renderDetail();}
+function selectNone(){pendingRec.forEach((_,i)=>{selectedRec.delete(i);document.getElementById('rc'+i)?.classList.remove('sel');});renderDetail();}
+
+function renderDetail(){
+  if(!selectedRec.size){document.getElementById('rec-detail').innerHTML='';return;}
+  const diffCls={'低':'diff-low','中':'diff-mid','高':'diff-high'};
+  const rows=[...selectedRec].map(i=>{const k=pendingRec[i];return`<div class="deploy-row"><span style="font-weight:600;min-width:110px;font-size:13px">${esc(k.kw)}</span><span class="deploy-pos">${esc(k.position)}</span><span class="${diffCls[k.difficulty]||'diff-mid'}">${k.difficulty||'中'}${T('difficulty')}</span><span style="font-size:11px;color:var(--text-3)">${esc(k.intent||'')}</span><span style="font-size:12px;color:var(--text-2);flex:1">${esc(k.reason)}</span></div>`;}).join('');
+  document.getElementById('rec-detail').innerHTML=`<div class="deploy-detail" style="margin-top:12px">${rows}</div>`;
+}
+
+async function deploySelected(){
+  if(!selectedRec.size){showToast(T('selectKwWarn'));return;}
+  const sel=[...selectedRec].map(i=>pendingRec[i]);
+  for(const k of sel){const ex=kwLibrary.find(x=>x.kw===k.kw);if(!ex){const nk={kw:k.kw,type:k.type,status:'planned',article:currentTitle,position:k.position,priority:'中',note:k.reason||''};ensureUid(nk);kwLibrary.push(nk);await saveKw(nk);}else{ex.status='planned';ex.article=currentTitle;ex.position=k.position;await saveKw(ex);}}
+  const exArt=articles.find(a=>a.title===currentTitle);
+  if(!exArt){const na={title:currentTitle,keywords:sel.map(k=>k.kw),status:'planned'};articles.push(na);await saveArt(na);}
+  else{sel.forEach(k=>{if(!exArt.keywords.includes(k.kw))exArt.keywords.push(k.kw);});await saveArt(exArt);}
+  updateBadges();selectedRec=new Set();
+  document.getElementById('rec-output').innerHTML=`<div class="card">
+    <div class="alert alert-success" style="margin-bottom:12px">✓ ${T('deployed',{n:sel.length,title:currentTitle})}</div>
+    <div style="margin-bottom:14px">${sel.map(k=>`<span class="chip sel">${esc(k.kw)}</span>`).join('')}</div>
+    <div class="btn-group">
+      <button class="btn btn-sm" onclick="showPage('articles')">${T('viewArticles')}</button>
+      <button class="btn btn-sm" onclick="showPage('dashboard')">${T('viewDashboard')}</button>
+      <button class="btn btn-primary btn-sm" onclick="document.getElementById('rec-output').innerHTML='';document.getElementById('inp-title').value=''">${T('continueNext')}</button>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════
+// ANALYZE
+// ═══════════════════════════════════════
+async function doAnalyze(){
+  const kw=document.getElementById('ana-kw').value.trim();
+  const ctx=document.getElementById('ana-ctx').value.trim();
+  const cfg=getCfg();
+  if(!kw){showToast(T('kwRequired'));return;}
+  if(!cfg.gemini&&!cfg.ali){openConfig();return;}
+  const btn=document.getElementById('btn-ana');
+  btn.disabled=true;btn.innerHTML=`<span class="loading-dot">${T('anaLoading')}</span>`;
+  document.getElementById('ana-output').innerHTML=`<div class="card"><p class="loading-dot" style="color:var(--text-3)">${T('anaLoading')}</p></div>`;
+  const prompt=`你是工业互联网SEO专家。深度分析关键词「${kw}」${ctx?'，背景：'+ctx:''}。
+返回JSON：{"summary":"核心价值（50字）","searchVolume":"预估月搜索量","difficulty":"竞争难度（低/中/高）+ 说明","intent":"搜索意图类型+说明","audience":["受众1","受众2","受众3"],"relatedKws":[{"kw":"相关词","relation":"关系"}],"contentSuggestions":[{"title":"推荐文章标题","angle":"内容角度","positions":["位置"]}],"deployGuide":{"title":"是否放标题","h2":"H2建议","density":"正文频率","avoid":"注意事项"}}`;
+  try{
+    const raw=await callAI(prompt,0.3,2048);
+    renderAnalysis(kw,parseAIJson(raw));
+  }catch(e){
+    document.getElementById('ana-output').innerHTML=`<div class="card"><div class="alert alert-error" style="white-space:pre-wrap">${e.message}</div></div>`;
+  }
+  btn.disabled=false;btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><span>${T('anaBtn')}</span>`;
+}
+
+function renderAnalysis(kw,r){
+  const diffCls={'低':'diff-low','中':'diff-mid','高':'diff-high'};
+  document.getElementById('ana-output').innerHTML=`
+  <div class="card">
+    <div class="card-header"><div class="card-title">「${esc(kw)}」</div></div>
+    <div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+      <div class="stat-card"><div class="stat-num" style="font-size:18px">${esc(r.searchVolume||T('noData'))}</div><div class="stat-label">${T('searchVolume')}</div></div>
+      <div class="stat-card"><div class="stat-num" style="font-size:18px"><span class="${diffCls[(r.difficulty||'').split('（')[0]]||'diff-mid'}">${esc((r.difficulty||'').split('（')[0]||T('noData'))}</span></div><div class="stat-label">${T('competeDiff')}</div></div>
+      <div class="stat-card"><div class="stat-num" style="font-size:18px">${esc((r.intent||'').split('：')[0]||T('noData'))}</div><div class="stat-label">${T('searchIntent')}</div></div>
+    </div>
+    <p style="font-size:13px;color:var(--text-2);padding:10px 14px;background:var(--bg-soft);border-radius:var(--radius-sm);border:1px solid var(--border)">${esc(r.summary||'')}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px">
+      <div>
+        <div class="card-title" style="margin-bottom:8px">${T('targetAudience')}</div>
+        ${(r.audience||[]).map(a=>`<div class="kw-row" style="padding:6px 0;font-size:13px">👤 ${esc(a)}</div>`).join('')}
+      </div>
+      <div>
+        <div class="card-title" style="margin-bottom:8px">${T('deployGuide')}</div>
+        ${r.deployGuide?['title','h2','density','avoid'].map(f=>`<div class="kw-row" style="padding:5px 0"><span style="min-width:52px;font-size:11px;font-weight:600;color:var(--text-3)">${T(f)}</span><span style="font-size:13px;color:${f==='avoid'?'var(--red-text)':'var(--text)'}">${esc(r.deployGuide[f]||'')}</span></div>`).join(''):T('noData')}
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">${T('relatedKws')}</div>
+      <button class="btn btn-xs btn-primary" onclick="addAllRelated(${JSON.stringify((r.relatedKws||[]).map(k=>k.kw)).replace(/"/g,'&quot;')})">${T('addAllRelated')}</button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">
+      ${(r.relatedKws||[]).map(rk=>`<span class="chip" onclick="addRelated('${esc(rk.kw)}','长尾词')" title="${esc(rk.relation)}">${esc(rk.kw)} <span style="font-size:10px;opacity:.6">+</span></span>`).join('')}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">${T('contentSuggestions')}</div></div>
+    ${(r.contentSuggestions||[]).map((s,i)=>`<div class="kw-row" style="padding:10px 0;flex-direction:column;align-items:flex-start;gap:4px"><div style="font-weight:600;font-size:13px">${i+1}. ${esc(s.title)}</div><div style="font-size:12px;color:var(--text-2)">${esc(s.angle)}</div><div>${(s.positions||[]).map(p=>`<span class="deploy-pos" style="margin-right:4px">${esc(p)}</span>`).join('')}</div></div>`).join('')}
+  </div>`;
+}
+
+async function addRelated(kw,type){if(kwLibrary.find(x=>x.kw===kw)){showToast(T('alreadyInLib',{kw}));return;}const nk={kw,type,status:'pending',article:'',position:'',priority:'中',note:''};ensureUid(nk);kwLibrary.push(nk);await saveKw(nk);updateBadges();showToast(T('addedToLib',{kw}));}
+async function addAllRelated(kws){let n=0;for(const kw of kws){if(!kwLibrary.find(x=>x.kw===kw)){const nk={kw,type:'长尾词',status:'pending',article:'',position:'',priority:'中',note:''};ensureUid(nk);kwLibrary.push(nk);await saveKw(nk);n++;}}updateBadges();showToast(T('addedAll',{n}));}
+
+// ═══════════════════════════════════════
+// LIBRARY
+// ═══════════════════════════════════════
+function openAddKw(){document.getElementById('add-kw-panel').style.display='block';}
+function closeAddKw(){document.getElementById('add-kw-panel').style.display='none';}
+
+async function addKwManual(){
+  const v=document.getElementById('new-kw').value.trim();
+  const tp=document.getElementById('new-kw-type').value;
+  const p=document.getElementById('new-kw-pri').value;
+  const n=document.getElementById('new-kw-note').value.trim();
+  if(!v)return;
+  if(kwLibrary.find(x=>x.kw===v)){showToast(T('alreadyExists'));return;}
+  const nk={kw:v,type:tp,status:'pending',article:'',position:'',priority:p,note:n};
+  ensureUid(nk);kwLibrary.push(nk);await saveKw(nk);
+  document.getElementById('new-kw').value='';document.getElementById('new-kw-note').value='';
+  closeAddKw();renderLibrary();updateBadges();showToast(T('addedKw'));
+}
+
+function renderLibrary(){
+  const q=(document.getElementById('lib-search').value||'').toLowerCase();
+  const sf=document.getElementById('lib-filter').value;
+  const tf=document.getElementById('lib-type').value;
+  const sort=document.getElementById('lib-sort').value;
+  kwLibrary.forEach(ensureUid);
+  let f=kwLibrary.filter(k=>(!q||k.kw.toLowerCase().includes(q))&&(!sf||k.status===sf)&&(!tf||k.type===tf));
+  if(sort==='alpha')f=[...f].sort((a,b)=>a.kw.localeCompare(b.kw,'zh'));
+  else if(sort==='type')f=[...f].sort((a,b)=>a.type.localeCompare(b.type));
+  const sl={pending:'b-pending',planned:'b-planned',done:'b-done'};
+  const tl={pending:T('s_pending'),planned:T('s_planned'),done:T('s_done')};
+  const prl={高:T('p_high'),中:T('p_mid'),低:T('p_low')};
+  if(!f.length){document.getElementById('lib-list').innerHTML=`<div class="empty">${T('allStatus')}</div>`;return;}
+  document.getElementById('lib-list').innerHTML=`<table class="tbl"><tbody>${f.map(k=>{
+    const uid=k._uid;
+    return`<tr>
+      <td><input type="checkbox" ${libChecked.has(uid)?'checked':''} onchange="toggleLibCheck('${uid}',this)"/></td>
+      <td><span style="font-weight:500;font-size:13px" title="${esc(k.kw)}">${esc(k.kw)}</span></td>
+      <td><span class="badge ${TYPE_BADGE[k.type]||'b-pending'}">${esc(k.type)}</span></td>
+      <td><span class="badge ${sl[k.status]||'b-pending'}">${tl[k.status]||k.status}</span></td>
+      <td><span style="font-size:12px;font-weight:600;${PRI_STYLE[k.priority]||''}">${prl[k.priority]||k.priority}</span></td>
+      <td><span style="font-size:12px;color:var(--text-2);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">${esc(k.article)||'<span style="color:var(--text-3)">—</span>'}</span></td>
+      <td><span style="font-size:11px;color:var(--text-3)">${esc(k.position)||'—'}</span></td>
+      <td><span style="font-size:11px;color:var(--text-3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block" title="${esc(k.note)}">${esc(k.note)||'—'}</span></td>
+      <td><div style="display:flex;gap:4px;flex-wrap:nowrap">
+        ${k.status==='planned'?`<button class="btn btn-xs btn-success" onclick="markDone('${uid}')">${T('s_done')}</button>`:''}
+        <button class="btn btn-xs" onclick="openEdit('${uid}')">${lang==='zh'?'编辑':'Edit'}</button>
+        <button class="btn btn-xs btn-danger" onclick="removeKw('${uid}')">${lang==='zh'?'删':'Del'}</button>
+      </div></td>
+    </tr>`;
+  }).join('')}</tbody></table>`;
+  updateBulkBar();
+}
+
+function toggleLibCheck(uid,el){if(el.checked)libChecked.add(uid);else libChecked.delete(uid);updateBulkBar();}
+function toggleCheckAll(el){kwLibrary.forEach(k=>{ensureUid(k);if(el.checked)libChecked.add(k._uid);else libChecked.delete(k._uid);});renderLibrary();}
+function clearSelection(){libChecked.clear();document.getElementById('check-all').checked=false;renderLibrary();}
+function updateBulkBar(){const bar=document.getElementById('bulk-bar');if(libChecked.size>0){bar.style.display='flex';document.getElementById('sel-count').textContent=T('selected',{n:libChecked.size});}else bar.style.display='none';}
+async function bulkPlan(){for(const uid of libChecked){const k=kwLibrary.find(x=>x._uid===uid);if(k){k.status='planned';await saveKw(k);}}libChecked.clear();renderLibrary();showToast(T('saved'));}
+async function bulkDelete(){if(!confirm(T('confirmDelete',{n:libChecked.size})))return;const toDelete=[...libChecked];for(const uid of toDelete){const idx=kwLibrary.findIndex(x=>x._uid===uid);if(idx>-1){await deleteKw(kwLibrary[idx]);kwLibrary.splice(idx,1);}}libChecked.clear();renderLibrary();updateBadges();showToast(T('deleted'));}
+async function markDone(uid){const k=kwLibrary.find(x=>x._uid===uid);if(!k)return;k.status='done';await saveKw(k);renderLibrary();showToast(T('markedDone'));}
+async function removeKw(uid){if(!confirm(T('confirmDeleteOne')))return;const idx=kwLibrary.findIndex(x=>x._uid===uid);if(idx>-1){await deleteKw(kwLibrary[idx]);kwLibrary.splice(idx,1);}renderLibrary();updateBadges();showToast(T('deleted'));}
+function openEdit(uid){editingKwIdx=uid;const k=kwLibrary.find(x=>x._uid===uid);if(!k)return;document.getElementById('edit-kw').value=k.kw;document.getElementById('edit-type').value=k.type;document.getElementById('edit-pri').value=k.priority||'中';document.getElementById('edit-pos').value=k.position||'';document.getElementById('edit-note').value=k.note||'';document.getElementById('edit-modal').classList.add('open');}
+function closeEditModal(){document.getElementById('edit-modal').classList.remove('open');editingKwIdx=null;}
+async function saveEditModal(){if(!editingKwIdx)return;const k=kwLibrary.find(x=>x._uid===editingKwIdx);if(!k)return;k.kw=document.getElementById('edit-kw').value.trim();k.type=document.getElementById('edit-type').value;k.priority=document.getElementById('edit-pri').value;k.position=document.getElementById('edit-pos').value.trim();k.note=document.getElementById('edit-note').value.trim();await saveKw(k);closeEditModal();renderLibrary();showToast(T('saved'));}
+
+// ═══════════════════════════════════════
+// ARTICLES
+// ═══════════════════════════════════════
+function openAddArt(){document.getElementById('add-art-panel').style.display='block';}
+function closeAddArt(){document.getElementById('add-art-panel').style.display='none';}
+async function addArtManual(){
+  const ti=document.getElementById('new-art-title').value.trim();
+  const kws=document.getElementById('new-art-kws').value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(!ti)return;
+  const na={title:ti,keywords:kws,status:'planned'};
+  articles.push(na);await saveArt(na);updateBadges();
+  document.getElementById('new-art-title').value='';document.getElementById('new-art-kws').value='';
+  closeAddArt();renderArticles();
+}
+
+function renderArticles(){
+  const list=document.getElementById('articles-list');
+  const empty=document.getElementById('articles-empty');
+  if(!articles.length){list.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  list.innerHTML=articles.slice().reverse().map(a=>{
+    const total=a.keywords?.length||0;
+    const done=a.keywords?.filter(kw=>kwLibrary.find(x=>x.kw===kw)?.status==='done').length||0;
+    const pct=total?Math.round(done/total*100):0;
+    return`<div class="art-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:14px;margin-bottom:3px">${esc(a.title)}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:8px">${T('kwCountTpl',{n:total,d:done,p:pct})}</div>
+          <div class="prog-bar" style="margin-bottom:8px"><div class="prog-fill" style="width:${pct}%"></div></div>
+          <div>${(a.keywords||[]).map(kw=>{const isDone=kwLibrary.find(x=>x.kw===kw)?.status==='done';return`<span class="a-chip" style="${isDone?'background:var(--green-bg);color:var(--green-text)':''}">${esc(kw)}</span>`;}).join('')}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+          <span class="badge ${a.status==='done'?'b-done':'b-planned'}">${a.status==='done'?T('deployed_badge'):T('pending_badge')}</span>
+          ${a.status!=='done'?`<button class="btn btn-xs btn-success" onclick="publishArt('${esc(String(a.id||a.title)).replace(/'/g,"\\'")}')">${T('s_done')}</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function publishArt(idOrTitle){const a=articles.find(x=>String(x.id)===idOrTitle||x.title===idOrTitle);if(!a)return;a.status='done';for(const kw of(a.keywords||[])){const k=kwLibrary.find(x=>x.kw===kw);if(k){k.status='done';await saveKw(k);}}await saveArt(a);renderArticles();showToast(T('published'));}
+
+// ═══════════════════════════════════════
+// IMPORT
+// ═══════════════════════════════════════
+async function doImport(){
+  const text=document.getElementById('import-text').value.trim();
+  const defType=document.getElementById('import-default-type').value;
+  if(!text)return;
+  let added=0,skipped=0;
+  for(const line of text.split('\n').filter(l=>l.trim())){
+    const parts=line.split(',').map(s=>s.trim());const kw=parts[0];if(!kw)continue;
+    if(kwLibrary.find(x=>x.kw===kw)){skipped++;continue;}
+    const nk={kw,type:parts[1]||defType,status:'pending',article:'',position:'',priority:'中',note:parts[2]||''};
+    ensureUid(nk);kwLibrary.push(nk);await saveKw(nk);added++;
+  }
+  updateBadges();document.getElementById('import-result').textContent=T('importDone',{added,skip:skipped});showToast(T('imported',{n:added}));
+}
+
+const TPLS={
+  iot:`工业互联网平台,核心词\n工业物联网解决方案,场景词\n工厂设备联网,场景词\nOPC UA协议,长尾词\n工业数据采集,场景词\nSCADA系统集成,长尾词\n工业网关选型,长尾词\n边缘计算网关,核心词\n工厂数字化改造,场景词\n设备状态监控系统,场景词`,
+  mfg:`智能制造解决方案,核心词\nMES系统对接,长尾词\n产线自动化改造,场景词\n工厂数字孪生,场景词\n精益生产管理,场景词\n工业机器人联网,场景词\n质量追溯系统,长尾词\n智能仓储管理,场景词\n工厂能耗管理,场景词\n工业大数据分析,场景词`,
+  sec:`工业网络安全,核心词\n工控系统安全,长尾词\n工业防火墙,核心词\nOT网络安全,长尾词\n网络安全等保,长尾词\n工业VPN隔离,场景词\n零信任网络,长尾词\n工业网络准入控制,场景词`,
+  auto:`PLC远程调试,长尾词\n工业自动化控制,核心词\n变频器远程监控,场景词\n伺服系统联网,场景词\n工业机械臂控制,场景词\n工厂自动化改造方案,场景词\n工业控制系统,核心词`,
+  cloud:`工业云平台,核心词\n设备云端管理,场景词\n工业SaaS平台,长尾词\n工厂数据上云,场景词\n私有化部署,长尾词\n混合云工业方案,场景词`
+};
+function loadTemplate(name){document.getElementById('import-text').value=TPLS[name]||'';showToast(T('tplLoaded'));}
+
+// ═══════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════
+function renderDashboard(){
+  const total=kwLibrary.length,pending=kwLibrary.filter(k=>k.status==='pending').length;
+  const planned=kwLibrary.filter(k=>k.status==='planned').length,done=kwLibrary.filter(k=>k.status==='done').length;
+  const pct=total?Math.round(done/total*100):0;
+  document.getElementById('dash-stats').innerHTML=`
+    <div class="stat-card"><div class="stat-num">${total}</div><div class="stat-label">${T('statTotal')}</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--text-3)">${pending}</div><div class="stat-label">${T('statPending')}</div><div class="stat-sub">${T('statWaiting')}</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--blue)">${planned}</div><div class="stat-label">${T('statPlanned')}</div><div class="stat-sub">${T('statToDeploy')}</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--green-dk)">${done}</div><div class="stat-label">${T('statDone')}</div><div class="stat-sub">${T('statSEO')}</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:${pct>60?'var(--green-dk)':pct>30?'var(--blue)':'var(--amber)'}">${pct}%</div><div class="stat-label">${T('statCoverage')}</div><div class="prog-bar" style="margin-top:8px"><div class="prog-fill" style="width:${pct}%;background:${pct>60?'var(--green-dk)':pct>30?'var(--blue)':'var(--amber)'}"></div></div></div>`;
+  const types=[...new Set(kwLibrary.map(k=>k.type))];
+  document.getElementById('type-progress').innerHTML=types.map(tp=>{const all=kwLibrary.filter(k=>k.type===tp),d=all.filter(k=>k.status==='done').length,pc=Math.round(d/all.length*100);return`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span class="badge ${TYPE_BADGE[tp]||'b-pending'}">${tp}</span><span style="color:var(--text-3)">${d}/${all.length} · ${pc}%</span></div><div class="prog-bar"><div class="prog-fill" style="width:${pc}%"></div></div></div>`;}).join('');
+  const pris=['高','中','低'];
+  const priColors={'高':'var(--red-text)','中':'var(--blue-text)','低':'var(--text-3)'};
+  const priBarColors={'高':'var(--red)','中':'var(--blue)','低':'var(--text-3)'};
+  document.getElementById('pri-progress').innerHTML=pris.map(p=>{const all=kwLibrary.filter(k=>(k.priority||'中')===p);if(!all.length)return'';const d=all.filter(k=>k.status==='done').length,pc=Math.round(d/all.length*100);const label={高:T('p_high'),中:T('p_mid'),低:T('p_low')}[p];return`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="font-weight:600;color:${priColors[p]}">${T('priLabel')}${label}</span><span style="color:var(--text-3)">${d}/${all.length} · ${pc}%</span></div><div class="prog-bar"><div class="prog-fill" style="width:${pc}%;background:${priBarColors[p]}"></div></div></div>`;}).join('');
+  document.getElementById('recent-arts').innerHTML=!articles.length?`<div class="empty" style="padding:24px">${T('noArticle')}</div>`:articles.slice(-8).reverse().map(a=>`<div class="kw-row"><span class="kw-name" style="font-size:13px">${esc(a.title)}</span><span class="badge ${a.status==='done'?'b-done':'b-planned'}">${a.status==='done'?T('deployed_badge'):T('pending_badge')}</span></div>`).join('');
+  const pKws=kwLibrary.filter(k=>k.status==='pending').slice(0,10);
+  document.getElementById('pending-kws').innerHTML=!pKws.length?`<div class="empty" style="padding:24px">${T('allAssigned')}</div>`:pKws.map(k=>`<div class="kw-row"><span class="kw-name">${esc(k.kw)}</span><span class="badge ${TYPE_BADGE[k.type]||'b-pending'}">${esc(k.type)}</span></div>`).join('');
+}
+
+// ═══════════════════════════════════════
+// MATRIX
+// ═══════════════════════════════════════
+function renderMatrix(){
+  const types=[...new Set(kwLibrary.map(k=>k.type))];
+  const statusLabel={pending:T('s_pending'),planned:T('s_planned'),done:T('s_done')};
+  const statusColor={pending:'var(--text-3)',planned:'var(--blue-text)',done:'var(--green-text)'};
+  document.getElementById('matrix-view').innerHTML=types.map(type=>{
+    const kws=kwLibrary.filter(k=>k.type===type);
+    return`<div class="card"><div class="card-header"><div class="card-title"><span class="badge ${TYPE_BADGE[type]||'b-pending'}" style="margin-right:6px">${type}</span> ${kws.length} ${T('kwCount')}</div></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        ${['pending','planned','done'].map(s=>{
+          const sk=kws.filter(k=>k.status===s);
+          return`<div class="matrix-col">
+            <div style="font-size:10px;font-weight:700;color:${statusColor[s]};margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">${statusLabel[s]} (${sk.length})</div>
+            ${sk.length?sk.map(k=>`<div class="matrix-kw-item">${esc(k.kw)}</div>`).join(''):`<span style="font-size:12px;color:var(--text-3)">—</span>`}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════
+function exportData(){
+  const blob=new Blob([JSON.stringify({keywords:kwLibrary,articles,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=`keyword-matrix-${new Date().toLocaleDateString('zh-CN').replace(/\//g,'-')}.json`;
+  a.click();URL.revokeObjectURL(url);showToast(T('exported'));
+}
+
+// ═══════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+window.addEventListener('DOMContentLoaded',async()=>{
+  initTheme();
+  applyLang();
+  checkWarn();
+  await initSb();
+  renderLibrary();
+  updateBadges();
+  // close modals on overlay click
+  document.querySelectorAll('.overlay').forEach(el=>{
+    el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');});
+  });
+});
+</script>
+</body>
+</html>
