@@ -636,7 +636,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.6}
         <div class="row">
           <div class="field"><label data-i18n="contextLabel">行业背景（可选）</label><input type="text" id="inp-context" data-i18n-ph="contextPh"/></div>
           <div class="field" style="max-width:140px"><label data-i18n="countLabel">推荐数量</label>
-            <select id="inp-count"><option value="8">8 个</option><option value="12" selected>12 个</option><option value="15">15 个</option><option value="20">20 个</option></select>
+            <select id="inp-count"><option value="8">8 个</option><option value="12" selected>12 个</option><option value="15">15 个</option><option value="20">20 个</option><option value="30">30 个</option><option value="50">50 个</option><option value="100">100 个</option></select>
           </div>
         </div>
         <div class="row">
@@ -808,11 +808,11 @@ textarea{resize:vertical;min-height:80px;line-height:1.6}
         <div class="card-header"><div class="card-title" data-i18n="templates">快速模板</div></div>
         <p style="font-size:13px;color:var(--text-2);margin-bottom:12px" data-i18n="templateHint">点击加载行业模板，快速填充关键词</p>
         <div class="btn-group">
-          <button class="btn btn-sm" onclick="loadTemplate('iot')" data-i18n="tpl_iot">工业物联网</button>
-          <button class="btn btn-sm" onclick="loadTemplate('mfg')" data-i18n="tpl_mfg">智能制造</button>
-          <button class="btn btn-sm" onclick="loadTemplate('sec')" data-i18n="tpl_sec">网络安全</button>
-          <button class="btn btn-sm" onclick="loadTemplate('auto')" data-i18n="tpl_auto">工厂自动化</button>
-          <button class="btn btn-sm" onclick="loadTemplate('cloud')" data-i18n="tpl_cloud">工业云平台</button>
+          <button class="btn btn-sm" onclick="loadTemplate('iot')" data-i18n="tpl_iot">IoT Connectivity</button>
+          <button class="btn btn-sm" onclick="loadTemplate('mfg')" data-i18n="tpl_mfg">Smart Manufacturing</button>
+          <button class="btn btn-sm" onclick="loadTemplate('energy')" data-i18n="tpl_sec">Energy & Utility</button>
+          <button class="btn btn-sm" onclick="loadTemplate('transport')" data-i18n="tpl_auto">Transportation</button>
+          <button class="btn btn-sm" onclick="loadTemplate('cloud')" data-i18n="tpl_cloud">Cloud & Edge</button>
         </div>
       </div>
     </div>
@@ -1112,16 +1112,89 @@ function ensureUid(k){if(!k._uid)k._uid=Math.random().toString(36).slice(2);retu
 // DEFAULTS
 // ═══════════════════════════════════════
 function getDefaults(){return[
-  {kw:'工业路由器',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:'核心品类词'},
-  {kw:'4G工业路由器',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:''},
-  {kw:'5G工业路由器',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:'新兴高热词'},
-  {kw:'工业路由器选型指南',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:'决策阶段词'},
-  {kw:'工业路由器和家用路由器区别',type:'长尾词',status:'pending',article:'',position:'H2标题',priority:'高',note:'高搜索量科普词'},
-  {kw:'工厂无线网络覆盖方案',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:''},
-  {kw:'智能工厂网络方案',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:''},
-  {kw:'工厂IT运维',type:'客户画像',status:'pending',article:'',position:'正文',priority:'高',note:'核心决策人'},
-  {kw:'工业路由器怎么选',type:'问答词',status:'pending',article:'',position:'标题',priority:'高',note:''},
-  {kw:'研华工业路由器',type:'竞品词',status:'pending',article:'',position:'正文',priority:'中',note:'头部竞品'},
+  // ── Core Keywords (核心词) ──
+  {kw:'industrial router',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:'Primary product category'},
+  {kw:'5G industrial router',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:'Top product line'},
+  {kw:'4G LTE industrial router',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:'Mainstream product'},
+  {kw:'cellular industrial router',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'industrial IoT router',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:'IoT positioning'},
+  {kw:'M2M router',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:'Classic M2M term'},
+  {kw:'dual SIM industrial router',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:'Key differentiator'},
+  {kw:'rugged router',type:'核心词',status:'pending',article:'',position:'标题',priority:'中',note:''},
+  {kw:'IoT gateway',type:'核心词',status:'pending',article:'',position:'标题',priority:'高',note:'Adjacent product'},
+  {kw:'industrial cellular modem',type:'核心词',status:'pending',article:'',position:'标题',priority:'中',note:''},
+  // ── Long-tail Keywords (长尾词) ──
+  {kw:'best 5G industrial router',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:'High buyer intent'},
+  {kw:'5G router for industrial use',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'industrial router with dual SIM failover',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:'Feature-specific'},
+  {kw:'LTE Cat 4 industrial router',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:'WR143 product match'},
+  {kw:'LTE Cat 6 industrial router',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:'WR565 product match'},
+  {kw:'5G router with Wi-Fi 6',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:'WR575/WR578 match'},
+  {kw:'industrial router with RS485 serial port',type:'长尾词',status:'pending',article:'',position:'H2标题',priority:'高',note:''},
+  {kw:'industrial router with PoE output',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:'WR578 feature'},
+  {kw:'industrial router WAN failover',type:'长尾词',status:'pending',article:'',position:'H2标题',priority:'高',note:'Key selling point'},
+  {kw:'industrial router remote management',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'industrial router VPN configuration',type:'长尾词',status:'pending',article:'',position:'标题',priority:'中',note:''},
+  {kw:'industrial router OpenVPN setup',type:'长尾词',status:'pending',article:'',position:'H2标题',priority:'中',note:''},
+  {kw:'industrial router IPsec VPN',type:'长尾词',status:'pending',article:'',position:'H2标题',priority:'中',note:''},
+  {kw:'industrial router vs consumer router',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:'High traffic edu content'},
+  {kw:'how to choose an industrial router',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:'Decision stage'},
+  {kw:'industrial router for SCADA',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'industrial router Modbus TCP',type:'长尾词',status:'pending',article:'',position:'H2标题',priority:'中',note:''},
+  {kw:'industrial router MQTT protocol',type:'长尾词',status:'pending',article:'',position:'H2标题',priority:'中',note:''},
+  {kw:'router for IoT edge computing',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:'Emerging tech angle'},
+  {kw:'cellular router for remote monitoring',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'industrial router wide temperature range',type:'长尾词',status:'pending',article:'',position:'H2标题',priority:'低',note:'Spec-based search'},
+  {kw:'dual 5G industrial router',type:'长尾词',status:'pending',article:'',position:'标题',priority:'高',note:'WR677-D product'},
+  {kw:'industrial router DIN rail mount',type:'长尾词',status:'pending',article:'',position:'正文',priority:'低',note:''},
+  // ── Scene Keywords (场景词) ──
+  {kw:'industrial router for energy utility',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:'Key vertical'},
+  {kw:'5G router for smart grid',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'industrial router for substation automation',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'router for smart city applications',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'cellular router for transportation',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'5G router for connected vehicles',type:'场景词',status:'pending',article:'',position:'标题',priority:'中',note:''},
+  {kw:'industrial router for fleet management',type:'场景词',status:'pending',article:'',position:'标题',priority:'中',note:''},
+  {kw:'router for smart manufacturing',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'industrial IoT router for factory automation',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'router for retail IoT',type:'场景词',status:'pending',article:'',position:'标题',priority:'中',note:'Retail vertical'},
+  {kw:'cellular router for digital signage',type:'场景词',status:'pending',article:'',position:'H2标题',priority:'中',note:''},
+  {kw:'industrial router for oil and gas',type:'场景词',status:'pending',article:'',position:'标题',priority:'中',note:''},
+  {kw:'cellular router for water treatment',type:'场景词',status:'pending',article:'',position:'标题',priority:'中',note:''},
+  {kw:'5G router for mining operations',type:'场景词',status:'pending',article:'',position:'标题',priority:'中',note:''},
+  {kw:'router for building automation BMS',type:'场景词',status:'pending',article:'',position:'H2标题',priority:'中',note:''},
+  {kw:'industrial router for EV charging station',type:'场景词',status:'pending',article:'',position:'标题',priority:'中',note:'Growing segment'},
+  {kw:'cellular router AWS IoT integration',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:'Partner: AWS'},
+  {kw:'industrial router Azure IoT Hub',type:'场景词',status:'pending',article:'',position:'标题',priority:'高',note:'Partner: Azure'},
+  // ── Persona Keywords (客户画像) ──
+  {kw:'industrial router for system integrators',type:'客户画像',status:'pending',article:'',position:'正文',priority:'高',note:'SI channel'},
+  {kw:'OEM industrial router manufacturer',type:'客户画像',status:'pending',article:'',position:'正文',priority:'高',note:'OEM opportunity'},
+  {kw:'industrial router distributor',type:'客户画像',status:'pending',article:'',position:'正文',priority:'高',note:'Channel partner page'},
+  {kw:'industrial router for network engineers',type:'客户画像',status:'pending',article:'',position:'正文',priority:'中',note:''},
+  // ── Q&A Keywords (问答词) ──
+  {kw:'what is an industrial router',type:'问答词',status:'pending',article:'',position:'标题',priority:'高',note:'Top-of-funnel edu'},
+  {kw:'industrial router vs enterprise router',type:'问答词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'how does WAN failover work in industrial routers',type:'问答词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'what is dual SIM router',type:'问答词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'5G vs LTE for industrial IoT',type:'问答词',status:'pending',article:'',position:'标题',priority:'高',note:'High traffic comparison'},
+  {kw:'how to secure industrial router',type:'问答词',status:'pending',article:'',position:'标题',priority:'中',note:''},
+  {kw:'industrial router MTBF lifespan',type:'问答词',status:'pending',article:'',position:'H2标题',priority:'低',note:''},
+  {kw:'what is M2M router',type:'问答词',status:'pending',article:'',position:'标题',priority:'中',note:''},
+  {kw:'cellular router vs fiber for industry',type:'问答词',status:'pending',article:'',position:'标题',priority:'中',note:''},
+  // ── Competitor Keywords (竞品词) ──
+  {kw:'Cradlepoint industrial router alternative',type:'竞品词',status:'pending',article:'',position:'正文',priority:'高',note:'Top US competitor'},
+  {kw:'Sierra Wireless industrial router alternative',type:'竞词',status:'pending',article:'',position:'正文',priority:'高',note:''},
+  {kw:'Peplink router alternative',type:'竞品词',status:'pending',article:'',position:'正文',priority:'高',note:''},
+  {kw:'Robustel router alternative',type:'竞品词',status:'pending',article:'',position:'正文',priority:'中',note:''},
+  {kw:'Teltonika industrial router comparison',type:'竞品词',status:'pending',article:'',position:'正文',priority:'中',note:''},
+  // ── Brand Keywords (品牌词) ──
+  {kw:'Wavetel IoT router',type:'品牌词',status:'pending',article:'',position:'标题',priority:'高',note:'Own brand'},
+  {kw:'Wavetel industrial router review',type:'品牌词',status:'pending',article:'',position:'标题',priority:'高',note:''},
+  {kw:'WR575 5G industrial router',type:'品牌词',status:'pending',article:'',position:'标题',priority:'高',note:'Product model'},
+  {kw:'WR578 5G PoE industrial router',type:'品牌词',status:'pending',article:'',position:'标题',priority:'高',note:'Product model'},
+  {kw:'WR143 LTE Cat4 router',type:'品牌词',status:'pending',article:'',position:'标题',priority:'高',note:'Product model'},
+  {kw:'WR677-D dual 5G router',type:'品牌词',status:'pending',article:'',position:'标题',priority:'高',note:'Product model'},
+  {kw:'Wavetel IoT distributor',type:'品牌词',status:'pending',article:'',position:'正文',priority:'中',note:''},
 ].map((k,i)=>({...k,_uid:'d'+i}));}
 
 // ═══════════════════════════════════════
@@ -1174,9 +1247,14 @@ function geminiShouldTryNextModel(er){
   const code=Number(er.code);
   const status=String(er.status||'');
   const msg=String(er.message||'');
-  if(code===404||status.includes('NOT_FOUND'))return true;
-  if(code===429||code===503||status==='RESOURCE_EXHAUSTED'||status==='UNAVAILABLE')return true;
-  if(/quota|exceeded|rate limit|FreeTier|free_tier|generate_content_free|limit:\s*0|billing|overload|unavailable/i.test(msg))return true;
+  // 404 / NOT_FOUND: 模型不存在，换下一个
+  if(code===404||status.includes('NOT_FOUND')||msg.includes('not found')||msg.includes('NOT_FOUND'))return true;
+  // 429 / 503 / 配额耗尽 / 限流，换下一个
+  if(code===429||code===503)return true;
+  if(status==='RESOURCE_EXHAUSTED'||status==='UNAVAILABLE')return true;
+  // PERMISSION_DENIED 可能是该模型在当前地区/账号不可用，换下一个
+  if(code===403||status==='PERMISSION_DENIED')return true;
+  if(/quota|exceeded|rate.?limit|FreeTier|free_tier|generate_content_free|limit:\s*0|billing|overload|unavailable|permission.?denied/i.test(msg))return true;
   return false;
 }
 
@@ -1188,28 +1266,35 @@ async function callAI(prompt,temp=0.7,maxTok=2048){
     showToast('✦ Gemini');
     return r;
   }catch(e){
-    const tips='\n\n【若持续失败】请在 Google AI Studio 查看配额与结算：https://aistudio.google.com/apikey';
+    const tips='\n\n【若持续失败】请检查：\n1. 密钥格式是否正确（AIza 开头约39字符）\n2. 在 aistudio.google.com 确认该 Key 已启用\n3. 网络是否可访问 generativelanguage.googleapis.com';
     throw new Error(e.message+tips);
   }
 }
 
 async function callGemini(prompt,temperature=0.7,maxTokens=2048){
   const key=getCfg().gemini;if(!key)throw new Error('Gemini Key 未配置');
-  // 先试 lite / 1.5 系列，常与 2.0-flash 使用不同免费配额池；配额/限流时自动换下一个
-  const models=['gemini-2.0-flash-lite','gemini-1.5-flash-8b','gemini-1.5-flash','gemini-2.0-flash'];
+  // 模型顺序：稳定可用的免费模型优先，自动降级
+  const models=[
+    'gemini-1.5-flash',        // 最稳定的免费模型
+    'gemini-1.5-flash-8b',     // 轻量免费版
+    'gemini-2.0-flash',        // 新版，配额较少
+    'gemini-2.0-flash-lite',   // 部分地区/账号限制
+    'gemini-1.5-pro',          // 有免费配额但较少
+  ];
   let lastErr=null;
   for(const model of models){
     try{
       const res=await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
         {method:'POST',headers:{'Content-Type':'application/json'},
-         body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature,maxOutputTokens:maxTokens}})}
+         body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature,maxOutputTokens:maxTokens}}),
+         signal:AbortSignal.timeout(30000)}
       );
       const data=await res.json();
       if(data.error){
         const er=data.error;
-        if(geminiShouldTryNextModel(er)){lastErr=`[${model}] ${er.message||''}`;continue;}
-        throw new Error(er.message||JSON.stringify(er));
+        if(geminiShouldTryNextModel(er)){lastErr=`[${model}] ${er.status||''} ${er.message||''}`;console.warn('Gemini换模型:',lastErr);continue;}
+        throw new Error(`[${model}] ${er.message||JSON.stringify(er)}`);
       }
       const text=data.candidates?.[0]?.content?.parts?.[0]?.text;
       if(!text){
@@ -1219,13 +1304,13 @@ async function callGemini(prompt,temperature=0.7,maxTokens=2048){
       }
       return text;
     }catch(e){
+      if(e.name==='TimeoutError'){lastErr=`[${model}] 请求超时`;continue;}
       const m=String(e.message||'');
-      if(m.includes('not found')||m.includes('NOT_FOUND')){lastErr=m;continue;}
-      if(/quota|exceeded|RESOURCE_EXHAUSTED|429|503|FreeTier|free_tier|overload|unavailable/i.test(m)){lastErr=m;continue;}
+      if(geminiShouldTryNextModel({message:m,status:m})){lastErr=m;continue;}
       throw e;
     }
   }
-  throw new Error('Gemini 已尝试多模型仍失败（含配额用尽）: '+(lastErr||'未知'));
+  throw new Error('Gemini 全部模型均失败: '+(lastErr||'未知错误')+'\n请确认 Key 有效且网络可访问 generativelanguage.googleapis.com');
 }
 
 function parseAIJson(raw){
@@ -1512,11 +1597,44 @@ async function doImport(){
 }
 
 const TPLS={
-  iot:`工业互联网平台,核心词\n工业物联网解决方案,场景词\n工厂设备联网,场景词\nOPC UA协议,长尾词\n工业数据采集,场景词\nSCADA系统集成,长尾词\n工业网关选型,长尾词\n边缘计算网关,核心词\n工厂数字化改造,场景词\n设备状态监控系统,场景词`,
-  mfg:`智能制造解决方案,核心词\nMES系统对接,长尾词\n产线自动化改造,场景词\n工厂数字孪生,场景词\n精益生产管理,场景词\n工业机器人联网,场景词\n质量追溯系统,长尾词\n智能仓储管理,场景词\n工厂能耗管理,场景词\n工业大数据分析,场景词`,
-  sec:`工业网络安全,核心词\n工控系统安全,长尾词\n工业防火墙,核心词\nOT网络安全,长尾词\n网络安全等保,长尾词\n工业VPN隔离,场景词\n零信任网络,长尾词\n工业网络准入控制,场景词`,
-  auto:`PLC远程调试,长尾词\n工业自动化控制,核心词\n变频器远程监控,场景词\n伺服系统联网,场景词\n工业机械臂控制,场景词\n工厂自动化改造方案,场景词\n工业控制系统,核心词`,
-  cloud:`工业云平台,核心词\n设备云端管理,场景词\n工业SaaS平台,长尾词\n工厂数据上云,场景词\n私有化部署,长尾词\n混合云工业方案,场景词`
+  iot:`industrial IoT router,核心词
+5G industrial router,核心词
+IoT gateway,核心词
+cellular router for remote monitoring,场景词
+M2M router,核心词
+industrial router WAN failover,长尾词
+router for IoT edge computing,长尾词
+MQTT protocol industrial router,长尾词
+Modbus TCP router,长尾词
+SCADA industrial router,场景词`,
+  energy:`industrial router for energy utility,场景词
+5G router for smart grid,场景词
+router for substation automation,场景词
+cellular router for water treatment,场景词
+router for oil and gas,场景词
+IoT router for power distribution,场景词
+cellular router for renewable energy,场景词
+remote monitoring router energy,场景词`,
+  transport:`cellular router for transportation,场景词
+5G router for connected vehicles,场景词
+industrial router for fleet management,场景词
+router for smart city,场景词
+cellular router for public transit,场景词
+V2X communication router,场景词
+router for rail connectivity,场景词`,
+  mfg:`router for smart manufacturing,场景词
+industrial IoT router for factory automation,场景词
+PLC remote access router,长尾词
+router for industrial robot connectivity,场景词
+cellular router for production line,场景词
+router for predictive maintenance,场景词
+OPC UA industrial router,长尾词`,
+  cloud:`cellular router AWS IoT integration,场景词
+industrial router Azure IoT Hub,场景词
+router for cloud SCADA,场景词
+IoT router for cloud data upload,场景词
+edge computing 5G router,长尾词
+router for hybrid cloud industrial,场景词`
 };
 function loadTemplate(name){document.getElementById('import-text').value=TPLS[name]||'';showToast(T('tplLoaded'));}
 
