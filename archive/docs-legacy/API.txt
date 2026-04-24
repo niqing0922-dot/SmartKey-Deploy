@@ -1,0 +1,7 @@
+gemini :AIzaSyAmJJ1QYz9jICAH3yCHI4k9TD0zFoMI-Og
+
+阿里：sk-14505d7d71944f12a80d9fa6db2fbb34
+
+Supabase URL：https://naygxdeuyehiwazhlltt.supabase.co
+
+Supabase Anon key: sb_publishable_8CX7M-Axh6zBFfNXNZFAmQ_2WLS7Uoj

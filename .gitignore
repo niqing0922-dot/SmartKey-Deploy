@@ -1,2 +1,40 @@
-API.txt
-supabase_deploy.sql
+# Root dependencies
+/node_modules/
+
+# Nested dependencies and local runtimes
+**/node_modules/
+**/.venv/
+**/__pycache__/
+
+# Build output
+/frontend/dist/
+/dist/
+
+# Generated artifacts
+/.artifacts/
+/playwright-report/
+/test-results/
+*.log
+npm-debug.log*
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Local app runtime data
+/backend/data/
+/backend/backups/
+
+# Tool caches and generated result files
+/tools/google-indexing/cache/
+/tools/google-indexing/results/
+*.pyc
+
+# IDE and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

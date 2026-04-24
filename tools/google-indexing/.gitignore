@@ -1,0 +1,13 @@
+service_account.json
+.cache
+node_modules
+.vscode
+dist
+# 运行时缓存文件
+cache/
+crawl_progress.json
+urls_cache.json
+
+# 敏感配置（如果还未添加）
+config/service_account.json
+service_account.json

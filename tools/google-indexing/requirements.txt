@@ -1,0 +1,19 @@
+# Google Indexing API 批量提交工具依赖
+
+# Google API 客户端
+google-auth>=2.23.0
+google-auth-oauthlib>=1.0.0
+google-api-python-client>=2.100.0
+
+# HTTP 请求
+requests>=2.31.0
+
+# Excel/数据处理
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# 彩色输出和进度条
+rich>=13.0.0
+
+# 进度条 (可选,用于更美观的进度显示)
+# tqdm>=4.66.0

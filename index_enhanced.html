@@ -526,6 +526,48 @@ textarea{resize:vertical;min-height:80px;line-height:1.6}
   border-radius:var(--radius-sm);
 }
 [data-theme="dark"] #bulk-bar{border-color:var(--blue-bg)}
+
+/* ── Chat ── */
+.chat-msg{display:flex;gap:10px;align-items:flex-start;animation:fadeUp .18s ease}
+.chat-msg.chat-user{flex-direction:row-reverse}
+.chat-avatar{
+  width:30px;height:30px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;
+}
+.chat-ai .chat-avatar{background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff}
+.chat-user .chat-avatar{background:var(--bg-muted);color:var(--text-2);border:1px solid var(--border)}
+.chat-bubble{
+  max-width:72%;padding:10px 14px;border-radius:12px;
+  font-size:13.5px;line-height:1.65;
+}
+.chat-ai .chat-bubble{background:var(--bg-soft);border:1px solid var(--border);color:var(--text)}
+.chat-user .chat-bubble{background:var(--blue);color:#fff}
+.chat-bubble strong{font-weight:600}
+.chat-bubble a{color:inherit;text-decoration:underline;opacity:.85}
+.chat-thinking{opacity:.5;animation:ldot 1.2s steps(3,end) infinite}
+
+/* Article writer output */
+#aw-output h1,#aw-output h2,#aw-output h3{
+  font-weight:700;margin:1em 0 .4em;
+}
+#aw-output h1{font-size:1.4em;color:var(--text)}
+#aw-output h2{font-size:1.15em;color:var(--text)}
+#aw-output h3{font-size:1em;color:var(--text-2)}
+#aw-output p{margin:.5em 0}
+#aw-output ul,#aw-output ol{padding-left:1.4em;margin:.4em 0}
+#aw-output li{margin:.2em 0}
+#aw-output strong,#aw-output b{font-weight:700;color:var(--text)}
+#aw-output em{font-style:italic}
+#aw-output code{background:var(--bg-muted);padding:2px 5px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:.9em}
+
+/* Rank table rows */
+#rank-tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+#rank-tbody tr:hover{background:var(--bg-soft)}
+#rank-tbody td{padding:8px 10px;vertical-align:middle}
+.rank-pos-found{font-weight:700;color:var(--green-dk);font-family:'JetBrains Mono',monospace}
+.rank-pos-notfound{color:var(--text-3);font-size:12px}
+.rank-url{font-size:11px;color:var(--text-3);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
 </style>
 </head>
 <body>
@@ -560,6 +602,20 @@ textarea{resize:vertical;min-height:80px;line-height:1.6}
     <div class="nav-item" data-page="analyze" onclick="showPage('analyze')">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       <span data-i18n="navAnalyze">关键词分析</span>
+    </div>
+
+    <div class="nav-item" data-page="aiwrite" onclick="showPage('aiwrite')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      <span>AI 写文章</span>
+    </div>
+    <div class="nav-item" data-page="chat" onclick="showPage('chat')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>AI 聊天</span>
+    </div>
+    <div class="nav-item" data-page="rank" onclick="showPage('rank')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span>排名追踪</span>
+      <span class="nav-badge" id="nb-rank">0</span>
     </div>
 
     <div class="nav-group-label" data-i18n="navManage">管理</div>
@@ -842,6 +898,238 @@ textarea{resize:vertical;min-height:80px;line-height:1.6}
       <div><div class="page-title" data-i18n="navMatrix">矩阵视图</div><div class="page-desc" data-i18n="matrixDesc">按类型 × 状态查看关键词分布</div></div>
     </div>
     <div class="page-body"><div id="matrix-view"></div></div>
+  </div>
+
+
+  <!-- AI 写文章 -->
+  <div id="page-aiwrite" class="page">
+    <div class="page-header">
+      <div><div class="page-title">AI 写文章</div><div class="page-desc">基于关键词自动生成 SEO 优化文章</div></div>
+    </div>
+    <div class="page-body">
+      <div id="api-warn-write" class="alert alert-warn" style="display:none">⚠ 尚未配置 Gemini API Key，请点击左侧「配置 API 密钥」</div>
+      <div style="display:grid;grid-template-columns:340px 1fr;gap:16px;height:calc(100vh - 120px)">
+        <!-- 左侧控制面板 -->
+        <div style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
+          <div class="card" style="margin-bottom:0">
+            <div class="card-header"><div class="card-title">文章设置</div></div>
+            <div style="margin-bottom:10px">
+              <label>文章标题 *</label>
+              <input type="text" id="aw-title" placeholder="例：5G 工业路由器在智能工厂的 5 大应用"/>
+            </div>
+            <div style="margin-bottom:10px">
+              <label>目标关键词（逗号分隔）</label>
+              <textarea id="aw-kws" style="min-height:64px;font-size:12px" placeholder="5G industrial router, smart factory, IoT gateway"></textarea>
+            </div>
+            <div style="margin-bottom:10px">
+              <label>行业背景</label>
+              <input type="text" id="aw-ctx" placeholder="例：工业物联网，目标读者：工厂IT工程师"/>
+            </div>
+            <div style="margin-bottom:10px">
+              <label>文章类型</label>
+              <select id="aw-style">
+                <option value="blog">博客文章（实用干货）</option>
+                <option value="guide">完整指南（深度长文）</option>
+                <option value="compare">对比评测（竞品分析）</option>
+                <option value="case">案例研究（客户故事）</option>
+                <option value="faq">FAQ 问答页</option>
+                <option value="landing">落地页文案</option>
+              </select>
+            </div>
+            <div style="margin-bottom:10px">
+              <label>目标字数</label>
+              <select id="aw-len">
+                <option value="600">~600 字（简短）</option>
+                <option value="1000" selected>~1000 字（标准）</option>
+                <option value="1500">~1500 字（详细）</option>
+                <option value="2500">~2500 字（长文）</option>
+              </select>
+            </div>
+            <div style="margin-bottom:10px">
+              <label>语言</label>
+              <select id="aw-lang">
+                <option value="en">英文</option>
+                <option value="zh">中文</option>
+              </select>
+            </div>
+            <div style="margin-bottom:10px">
+              <label>从关键词库选取</label>
+              <div id="aw-kw-chips" style="max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px;background:var(--bg-soft);font-size:12px">
+                <span style="color:var(--text-3)">加载中...</span>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-full" id="btn-aw" onclick="doWriteArticle()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              AI 生成文章
+            </button>
+          </div>
+          <div class="card" style="margin-bottom:0" id="aw-history-card">
+            <div class="card-header"><div class="card-title">历史文章</div><button class="btn btn-xs btn-ghost" onclick="clearAwHistory()">清空</button></div>
+            <div id="aw-history" style="font-size:12px;color:var(--text-3)">暂无历史</div>
+          </div>
+        </div>
+        <!-- 右侧输出区 -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div id="aw-meta" style="font-size:12px;color:var(--text-3)"></div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-sm" id="btn-aw-copy" onclick="copyArticle()" style="display:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                复制全文
+              </button>
+              <button class="btn btn-sm btn-success" id="btn-aw-save" onclick="saveArticleToTracker()" style="display:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+                存入文章追踪
+              </button>
+            </div>
+          </div>
+          <div id="aw-output" style="flex:1;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-soft);padding:20px 24px;overflow-y:auto;font-size:14px;line-height:1.8;white-space:pre-wrap;color:var(--text);min-height:400px">
+            <div style="color:var(--text-3);text-align:center;padding-top:80px">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.3;display:block;margin:0 auto 12px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              填写左侧设置，点击「AI 生成文章」
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI 聊天 -->
+  <div id="page-chat" class="page">
+    <div class="page-header">
+      <div><div class="page-title">AI 聊天</div><div class="page-desc">询问 SEO 策略、内容创作、关键词建议</div></div>
+      <button class="btn btn-sm btn-ghost" onclick="clearChat()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        清空对话
+      </button>
+    </div>
+    <div style="display:flex;flex-direction:column;height:calc(100vh - 60px)">
+      <!-- 消息列表 -->
+      <div id="chat-messages" style="flex:1;overflow-y:auto;padding:20px 32px;display:flex;flex-direction:column;gap:16px">
+        <div class="chat-msg chat-ai">
+          <div class="chat-avatar">AI</div>
+          <div class="chat-bubble">
+            你好！我是你的 SEO & 内容策略助手。我可以帮你：<br><br>
+            📊 <strong>关键词策略</strong> — 如何选词、布局、优先级排序<br>
+            ✍️ <strong>内容创作</strong> — 文章结构、标题优化、内容框架<br>
+            🔍 <strong>SEO 分析</strong> — 搜索意图分析、竞争难度评估<br>
+            🚀 <strong>Google 收录</strong> — 索引加速、Indexing API 使用建议<br><br>
+            有什么想聊的？
+          </div>
+        </div>
+      </div>
+      <!-- 快捷提示 -->
+      <div id="chat-suggestions" style="padding:0 32px 12px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-xs btn-ghost" style="border:1px solid var(--border)" onclick="sendSuggestion(this)">如何提升关键词排名？</button>
+        <button class="btn btn-xs btn-ghost" style="border:1px solid var(--border)" onclick="sendSuggestion(this)">SEO 文章结构怎么写？</button>
+        <button class="btn btn-xs btn-ghost" style="border:1px solid var(--border)" onclick="sendSuggestion(this)">怎么快速让 Google 收录新页面？</button>
+        <button class="btn btn-xs btn-ghost" style="border:1px solid var(--border)" onclick="sendSuggestion(this)">分析一下我的关键词库</button>
+      </div>
+      <!-- 输入框 -->
+      <div style="padding:12px 32px 20px;border-top:1px solid var(--border);background:var(--bg);display:flex;gap:10px;align-items:flex-end">
+        <textarea id="chat-input" style="flex:1;resize:none;min-height:44px;max-height:160px;line-height:1.6;font-size:14px" placeholder="输入问题… (Enter 发送，Shift+Enter 换行)" onkeydown="handleChatKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="btn btn-primary" id="btn-chat-send" onclick="sendChat()" style="padding:10px 16px;flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          发送
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 排名追踪 -->
+  <div id="page-rank" class="page">
+    <div class="page-header">
+      <div><div class="page-title">排名追踪</div><div class="page-desc">查询关键词在 Google 的排名（SerpAPI）</div></div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="exportRankCsv()" id="btn-rank-export" style="display:none">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          导出 CSV
+        </button>
+        <button class="btn btn-sm btn-primary" onclick="doRankTrack()" id="btn-rank-start">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          开始追踪
+        </button>
+      </div>
+    </div>
+    <div class="page-body">
+      <!-- 设置卡片 -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">追踪设置</div></div>
+        <div class="row">
+          <div class="field">
+            <label>SerpAPI Key <span style="font-size:11px;font-weight:400;color:var(--text-3)">— 获取：serpapi.com（每月100次免费）</span></label>
+            <div class="key-input-wrap">
+              <input type="password" id="rank-serpapi-key" placeholder="your-serpapi-key..."/>
+              <button class="key-toggle" onclick="toggleKeyVis('rank-serpapi-key',this)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="field" style="max-width:180px">
+            <label>目标域名</label>
+            <input type="text" id="rank-domain" value="waveteliot.com" placeholder="example.com"/>
+          </div>
+          <div class="field" style="max-width:120px">
+            <label>最大页数</label>
+            <select id="rank-pages">
+              <option value="3">前 3 页（30）</option>
+              <option value="5" selected>前 5 页（50）</option>
+              <option value="10">前 10 页（100）</option>
+            </select>
+          </div>
+          <div class="field" style="max-width:120px">
+            <label>地区</label>
+            <select id="rank-gl">
+              <option value="us" selected>美国 (us)</option>
+              <option value="gb">英国 (gb)</option>
+              <option value="cn">中国 (cn)</option>
+              <option value="de">德国 (de)</option>
+              <option value="">不限</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label>追踪关键词 <span style="font-size:11px;font-weight:400;color:var(--text-3)">（每行一个，或从库中选择）</span></label>
+          <textarea id="rank-kws" style="min-height:80px;font-family:'JetBrains Mono',monospace;font-size:12px" placeholder="industrial router&#10;5G industrial router&#10;IoT gateway"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-sm" onclick="loadRankKwsFromLib()">从关键词库导入</button>
+          <span id="rank-credit-info" style="font-size:12px;color:var(--text-3)"></span>
+        </div>
+      </div>
+
+      <!-- 进度条 -->
+      <div id="rank-progress-wrap" style="display:none" class="card">
+        <div class="card-header">
+          <div class="card-title">追踪进度</div>
+          <span id="rank-progress-txt" style="font-size:12px;color:var(--text-3)">0 / 0</span>
+        </div>
+        <div class="prog-bar"><div class="prog-fill" id="rank-prog-bar" style="width:0%"></div></div>
+        <div id="rank-current-kw" style="font-size:12px;color:var(--text-3);margin-top:6px"></div>
+      </div>
+
+      <!-- 结果表 -->
+      <div id="rank-results-wrap" style="display:none" class="card">
+        <div class="card-header">
+          <div class="card-title">排名结果</div>
+          <div style="font-size:12px;color:var(--text-3)" id="rank-summary"></div>
+        </div>
+        <div style="overflow-x:auto">
+          <table id="rank-table" style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr style="border-bottom:2px solid var(--border);text-align:left">
+                <th style="padding:8px 10px;font-weight:600;color:var(--text-3);font-size:11px;text-transform:uppercase">关键词</th>
+                <th style="padding:8px 10px;font-weight:600;color:var(--text-3);font-size:11px;text-transform:uppercase">排名</th>
+                <th style="padding:8px 10px;font-weight:600;color:var(--text-3);font-size:11px;text-transform:uppercase">页码</th>
+                <th style="padding:8px 10px;font-weight:600;color:var(--text-3);font-size:11px;text-transform:uppercase">排名 URL</th>
+                <th style="padding:8px 10px;font-weight:600;color:var(--text-3);font-size:11px;text-transform:uppercase">查询时间</th>
+              </tr>
+            </thead>
+            <tbody id="rank-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 
 </main>
@@ -1200,7 +1488,7 @@ function getDefaults(){return[
 // ═══════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════
-const PAGES=['recommend','analyze','library','articles','import','dashboard','matrix'];
+const PAGES=['recommend','analyze','library','articles','import','dashboard','matrix','aiwrite','chat','rank'];
 function showPage(name){
   PAGES.forEach(p=>{
     const el=document.getElementById('page-'+p);
@@ -1212,10 +1500,12 @@ function showPage(name){
   if(name==='articles')renderArticles();
   if(name==='dashboard')renderDashboard();
   if(name==='matrix')renderMatrix();
+  if(name==='aiwrite')initAwKwChips();
+  if(name==='rank')initRankKwLoad();
   updateBadges();
   closeSidebar();
 }
-function updateBadges(){document.getElementById('nb-lib').textContent=kwLibrary.length;document.getElementById('nb-art').textContent=articles.length;}
+function updateBadges(){document.getElementById('nb-lib').textContent=kwLibrary.length;document.getElementById('nb-art').textContent=articles.length;document.getElementById('nb-rank').textContent=rankResults.filter(r=>r.found).length||rankResults.length||0;}
 
 // mobile
 function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('backdrop').style.display='block';}
@@ -1695,6 +1985,404 @@ function exportData(){
   a.click();URL.revokeObjectURL(url);showToast(T('exported'));
 }
 
+
+// ═══════════════════════════════════════
+// AI 写文章
+// ═══════════════════════════════════════
+let awHistory = [];
+let currentArticleText = '';
+let awSelectedKws = new Set();
+
+function initAwKwChips(){
+  const el = document.getElementById('aw-kw-chips');
+  if(!kwLibrary.length){el.innerHTML='<span style="color:var(--text-3)">关键词库为空</span>';return;}
+  el.innerHTML = kwLibrary.slice(0,40).map(k=>`<span onclick="toggleAwKw(this,'${esc(k.kw)}')" style="display:inline-block;cursor:pointer;padding:2px 8px;margin:2px;border-radius:99px;border:1px solid var(--border);font-size:11px;transition:all .13s">${esc(k.kw)}</span>`).join('')
+    + (kwLibrary.length>40?`<span style="color:var(--text-3);font-size:11px"> … 还有${kwLibrary.length-40}个</span>`:'');
+}
+
+function toggleAwKw(el, kw){
+  const textarea = document.getElementById('aw-kws');
+  let current = textarea.value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(awSelectedKws.has(kw)){
+    awSelectedKws.delete(kw);
+    current = current.filter(k=>k!==kw);
+    el.style.background='';el.style.color='';el.style.borderColor='';
+  } else {
+    awSelectedKws.add(kw);
+    if(!current.includes(kw)) current.push(kw);
+    el.style.background='var(--blue-bg)';el.style.color='var(--blue-text)';el.style.borderColor='var(--blue)';
+  }
+  textarea.value = current.join(', ');
+}
+
+async function doWriteArticle(){
+  const cfg = getCfg();
+  const title = document.getElementById('aw-title').value.trim();
+  const kws = document.getElementById('aw-kws').value.trim();
+  const ctx = document.getElementById('aw-ctx').value.trim();
+  const style = document.getElementById('aw-style').value;
+  const len = document.getElementById('aw-len').value;
+  const lang = document.getElementById('aw-lang').value;
+
+  if(!cfg.gemini){document.getElementById('api-warn-write').style.display='';openConfig();return;}
+  if(!title){showToast('请填写文章标题');return;}
+
+  const styleMap={blog:'博客文章（实用、干货导向）',guide:'完整指南（深度、权威、结构清晰）',compare:'竞品对比评测（客观、数据支撑）',case:'客户案例研究（真实场景、ROI量化）',faq:'FAQ 问答页（问题驱动、简洁直接）',landing:'落地页文案（转化导向、行动号召）'};
+  const langInstr = lang==='zh'?'请用中文撰写':'Please write in English';
+  const prompt = `你是顶级 SEO 内容写作专家。${langInstr}。
+
+文章标题：${title}
+${kws?'目标关键词（必须自然融入）：'+kws:''}
+${ctx?'背景信息：'+ctx:''}
+文章类型：${styleMap[style]}
+目标字数：约 ${len} 字
+
+要求：
+1. 结构清晰，使用 H2/H3 标题层次
+2. 关键词自然密度（每1000字约3-5次核心词）
+3. 开头100字内包含主关键词
+4. 每个 H2 对应一个核心要点
+5. 结尾含明确的 CTA（行动召唤）
+6. Meta Description：在文末附上一行"---\nMeta: [120字内的Meta描述]"
+
+直接输出文章正文，无需额外说明。`;
+
+  const btn = document.getElementById('btn-aw');
+  btn.disabled=true;btn.innerHTML='<span class="loading-dot">生成中</span>';
+  document.getElementById('aw-output').innerHTML='<div style="color:var(--text-3);padding:20px"><span class="loading-dot">AI 正在创作</span></div>';
+  document.getElementById('btn-aw-copy').style.display='none';
+  document.getElementById('btn-aw-save').style.display='none';
+  document.getElementById('aw-meta').textContent='';
+
+  try{
+    const raw = await callAI(prompt, 0.65, Math.round(parseInt(len)*2.5));
+    currentArticleText = raw;
+    // Render as formatted HTML
+    const html = rawToHtml(raw);
+    document.getElementById('aw-output').innerHTML = html;
+    const words = raw.replace(/[#\*\-]/g,'').trim().split(/\s+/).length;
+    document.getElementById('aw-meta').textContent = `约 ${words} 词 · ${new Date().toLocaleTimeString()}`;
+    document.getElementById('btn-aw-copy').style.display='';
+    document.getElementById('btn-aw-save').style.display='';
+
+    // Save to history
+    awHistory.unshift({title, kws, text:raw, ts: new Date().toLocaleString()});
+    if(awHistory.length>10) awHistory.pop();
+    renderAwHistory();
+    showToast('文章生成成功！');
+  }catch(e){
+    document.getElementById('aw-output').innerHTML=`<div class="alert alert-error" style="white-space:pre-wrap">${esc(e.message)}</div>`;
+  }
+  btn.disabled=false;btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> AI 生成文章';
+}
+
+function rawToHtml(text){
+  return text
+    .replace(/^#{3}\s+(.+)$/gm,'<h3>$1</h3>')
+    .replace(/^#{2}\s+(.+)$/gm,'<h2>$1</h2>')
+    .replace(/^#{1}\s+(.+)$/gm,'<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^---$/gm,'<hr style="border:none;border-top:1px solid var(--border);margin:16px 0">')
+    .replace(/\n\n/g,'</p><p>')
+    .replace(/^/,'<p>')
+    .replace(/$/,'</p>');
+}
+
+function copyArticle(){
+  navigator.clipboard.writeText(currentArticleText).then(()=>showToast('已复制到剪贴板'));
+}
+
+async function saveArticleToTracker(){
+  const title = document.getElementById('aw-title').value.trim();
+  const kws = document.getElementById('aw-kws').value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(!title) return;
+  const existing = articles.find(a=>a.title===title);
+  if(!existing){
+    const na={title,keywords:kws,status:'planned'};
+    articles.push(na);await saveArt(na);
+  }
+  updateBadges();showToast('已存入文章追踪！');
+}
+
+function renderAwHistory(){
+  const el = document.getElementById('aw-history');
+  if(!awHistory.length){el.innerHTML='<span style="color:var(--text-3)">暂无历史</span>';return;}
+  el.innerHTML = awHistory.map((h,i)=>`<div onclick="loadAwHistory(${i})" style="cursor:pointer;padding:6px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:start;gap:8px">
+    <div><div style="font-size:12px;font-weight:500;color:var(--text)">${esc(h.title.slice(0,30))}${h.title.length>30?'...':''}</div><div style="font-size:11px;color:var(--text-3)">${h.ts}</div></div>
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px"><polyline points="9 18 15 12 9 6"/></svg>
+  </div>`).join('');
+}
+
+function loadAwHistory(i){
+  const h = awHistory[i];
+  if(!h) return;
+  document.getElementById('aw-title').value = h.title;
+  document.getElementById('aw-kws').value = h.kws || '';
+  currentArticleText = h.text;
+  document.getElementById('aw-output').innerHTML = rawToHtml(h.text);
+  document.getElementById('btn-aw-copy').style.display='';
+  document.getElementById('btn-aw-save').style.display='';
+}
+
+function clearAwHistory(){awHistory=[];renderAwHistory();showToast('已清空历史');}
+
+// ═══════════════════════════════════════
+// AI 聊天
+// ═══════════════════════════════════════
+let chatHistory = []; // {role:'user'|'assistant', content:''}
+
+function handleChatKey(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}
+}
+
+function autoResize(el){
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight,160)+'px';
+}
+
+function sendSuggestion(btn){
+  document.getElementById('chat-input').value = btn.textContent;
+  sendChat();
+}
+
+async function sendChat(){
+  const cfg = getCfg();
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if(!text) return;
+  if(!cfg.gemini){openConfig();return;}
+
+  input.value='';input.style.height='';
+  document.getElementById('chat-suggestions').style.display='none';
+
+  // Append user message
+  chatHistory.push({role:'user',content:text});
+  appendChatMsg('user', text);
+
+  // Thinking placeholder
+  const thinkId = 'think-'+Date.now();
+  appendChatMsg('ai', '<span class="chat-thinking">思考中</span>', thinkId);
+
+  const btn = document.getElementById('btn-chat-send');
+  btn.disabled=true;
+
+  // Build context for Gemini (last 8 turns)
+  const kwSummary = kwLibrary.length ? `用户当前关键词库有${kwLibrary.length}个关键词，类型分布：${[...new Set(kwLibrary.map(k=>k.type))].join('、')}。` : '';
+  const recent = chatHistory.slice(-8);
+  const historyPrompt = recent.slice(0,-1).map(m=>`${m.role==='user'?'用户':'助手'}：${m.content}`).join('\n');
+
+  const systemCtx = `你是专业的 SEO 内容策略顾问，专注于工业物联网（IoT/工业路由器）领域的英文 SEO 优化。${kwSummary}回答要简洁实用，适当使用换行和分段，重点内容用**加粗**，控制在500字以内。`;
+  const prompt = `${systemCtx}\n\n${historyPrompt?'对话记录：\n'+historyPrompt+'\n\n':''}用户：${text}\n助手：`;
+
+  try{
+    const reply = await callAI(prompt, 0.7, 1024);
+    chatHistory.push({role:'assistant',content:reply});
+    const el = document.getElementById(thinkId);
+    if(el){
+      el.querySelector('.chat-bubble').innerHTML = formatChatReply(reply);
+    }
+  }catch(e){
+    const el = document.getElementById(thinkId);
+    if(el) el.querySelector('.chat-bubble').innerHTML=`<span style="color:var(--red-text)">${esc(e.message)}</span>`;
+  }
+  btn.disabled=false;
+  scrollChatBottom();
+}
+
+function formatChatReply(text){
+  return text
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\n\n/g,'<br><br>')
+    .replace(/\n/g,'<br>');
+}
+
+function appendChatMsg(role, html, id){
+  const messages = document.getElementById('chat-messages');
+  const isAi = role==='ai'||role==='assistant';
+  const initials = isAi?'AI':'我';
+  const div = document.createElement('div');
+  div.className = `chat-msg ${isAi?'chat-ai':'chat-user'}`;
+  if(id) div.id = id;
+  div.innerHTML = `<div class="chat-avatar">${initials}</div><div class="chat-bubble">${isAi?html:esc(html)}</div>`;
+  messages.appendChild(div);
+  scrollChatBottom();
+}
+
+function scrollChatBottom(){
+  const el = document.getElementById('chat-messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearChat(){
+  chatHistory=[];
+  const el = document.getElementById('chat-messages');
+  el.innerHTML=`<div class="chat-msg chat-ai"><div class="chat-avatar">AI</div><div class="chat-bubble">对话已清空，有什么新问题？😊</div></div>`;
+  document.getElementById('chat-suggestions').style.display='';
+}
+
+// ═══════════════════════════════════════
+// 排名追踪
+// ═══════════════════════════════════════
+let rankResults = [];
+let rankRunning = false;
+
+function initRankLoad(){
+  const saved = localStorage.getItem('rank-serpapi-key');
+  if(saved) document.getElementById('rank-serpapi-key').value = saved;
+}
+
+function initRankKwLoad(){
+  initRankLoad();
+}
+
+function loadRankKwsFromLib(){
+  if(!kwLibrary.length){showToast('关键词库为空');return;}
+  const kws = kwLibrary.map(k=>k.kw).join('\n');
+  document.getElementById('rank-kws').value = kws;
+  showToast(`已导入 ${kwLibrary.length} 个关键词`);
+}
+
+async function doRankTrack(){
+  if(rankRunning){showToast('追踪进行中，请稍候');return;}
+
+  const apiKey = document.getElementById('rank-serpapi-key').value.trim();
+  const domain = document.getElementById('rank-domain').value.trim();
+  const pages = parseInt(document.getElementById('rank-pages').value)||5;
+  const gl = document.getElementById('rank-gl').value;
+  const kwText = document.getElementById('rank-kws').value.trim();
+
+  if(!apiKey){showToast('请填写 SerpAPI Key');return;}
+  if(!domain){showToast('请填写目标域名');return;}
+  if(!kwText){showToast('请填写追踪关键词');return;}
+
+  // Save key
+  try{localStorage.setItem('rank-serpapi-key',apiKey);}catch(e){}
+
+  const keywords = kwText.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!keywords.length){showToast('请输入有效关键词');return;}
+
+  rankResults = [];
+  rankRunning = true;
+
+  // Show progress
+  document.getElementById('rank-progress-wrap').style.display='';
+  document.getElementById('rank-results-wrap').style.display='none';
+  document.getElementById('btn-rank-export').style.display='none';
+  document.getElementById('btn-rank-start').disabled=true;
+  document.getElementById('btn-rank-start').textContent='追踪中...';
+
+  for(let i=0;i<keywords.length;i++){
+    const kw = keywords[i];
+    const pct = Math.round((i/keywords.length)*100);
+    document.getElementById('rank-prog-bar').style.width = pct+'%';
+    document.getElementById('rank-progress-txt').textContent = `${i} / ${keywords.length}`;
+    document.getElementById('rank-current-kw').textContent = '正在查询：'+kw;
+
+    try{
+      const result = await serpApiQuery(apiKey, kw, domain, pages, gl);
+      rankResults.push(result);
+    }catch(e){
+      rankResults.push({keyword:kw, found:false, error:e.message, ts:new Date().toLocaleTimeString()});
+    }
+    // slight delay to avoid rate limit
+    if(i<keywords.length-1) await sleep(800);
+  }
+
+  // Done
+  rankRunning=false;
+  document.getElementById('rank-prog-bar').style.width='100%';
+  document.getElementById('rank-progress-txt').textContent=`${keywords.length} / ${keywords.length}`;
+  document.getElementById('rank-current-kw').textContent='✓ 追踪完成';
+  document.getElementById('btn-rank-start').disabled=false;
+  document.getElementById('btn-rank-start').textContent='开始追踪';
+
+  renderRankResults();
+  updateBadges();
+}
+
+async function serpApiQuery(apiKey, keyword, targetDomain, maxPages, gl){
+  const resultsPerRequest = 100;
+  const startValues = [];
+  for(let p=0;p<maxPages;p++) startValues.push(p*10);
+  // Use single request with num=100 to cover up to 100 results
+  const params = new URLSearchParams({
+    engine:'google', q:keyword,
+    num:resultsPerRequest, start:0,
+    api_key:apiKey, hl:'en',
+    output:'json'
+  });
+  if(gl) params.set('gl',gl);
+
+  const res = await fetch(`https://serpapi.com/search.json?${params}`,{signal:AbortSignal.timeout(20000)});
+  if(!res.ok){
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err.error||`HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+
+  const organicResults = data.organic_results||[];
+  const ts = new Date().toLocaleTimeString();
+
+  for(let idx=0;idx<organicResults.length;idx++){
+    const item = organicResults[idx];
+    const link = item.link||item.redirect_link||'';
+    if(domainMatchesJs(link, targetDomain)){
+      const pos = idx+1;
+      return {keyword, found:true, position:pos, page:Math.ceil(pos/10), url:link, ts};
+    }
+  }
+  return {keyword, found:false, position:null, page:null, url:null, ts};
+}
+
+function domainMatchesJs(url, target){
+  try{
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./,'');
+    const t = target.toLowerCase().replace(/^www\./,'');
+    return host===t||host.endsWith('.'+t);
+  }catch{return false;}
+}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function renderRankResults(){
+  const wrap = document.getElementById('rank-results-wrap');
+  wrap.style.display='';
+  const found = rankResults.filter(r=>r.found).length;
+  document.getElementById('rank-summary').textContent = `共 ${rankResults.length} 个关键词 · ${found} 个有排名 · ${rankResults.length-found} 个未找到`;
+
+  const tbody = document.getElementById('rank-tbody');
+  tbody.innerHTML = rankResults.map(r=>{
+    const posHtml = r.found
+      ? `<span class="rank-pos-found">#${r.position}</span>`
+      : (r.error?`<span style="color:var(--red-text);font-size:11px">错误</span>`:`<span class="rank-pos-notfound">未排名</span>`);
+    const pageHtml = r.found ? `第 ${r.page} 页` : '—';
+    const urlHtml = r.found ? `<a class="rank-url" href="${esc(r.url)}" target="_blank" title="${esc(r.url)}">${esc(r.url)}</a>` : (r.error?`<span class="rank-url" title="${esc(r.error||'')}">⚠ ${esc((r.error||'').slice(0,40))}</span>`:'—');
+    return `<tr>
+      <td style="font-weight:500">${esc(r.keyword)}</td>
+      <td>${posHtml}</td>
+      <td style="color:var(--text-3);font-size:12px">${pageHtml}</td>
+      <td>${urlHtml}</td>
+      <td style="font-size:11px;color:var(--text-3)">${r.ts||''}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('btn-rank-export').style.display='';
+}
+
+function exportRankCsv(){
+  if(!rankResults.length){showToast('无数据可导出');return;}
+  const header='关键词,排名,页码,URL,查询时间,是否找到\n';
+  const rows = rankResults.map(r=>`"${r.keyword}",${r.found?r.position:''},${r.found?r.page:''},"${r.url||''}","${r.ts||''}","${r.found?'是':'否'}"`).join('\n');
+  const blob = new Blob(['\uFEFF'+header+rows],{type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url;a.download=`rank-results-${new Date().toLocaleDateString('zh-CN').replace(/\//g,'-')}.csv`;
+  a.click();URL.revokeObjectURL(url);
+  showToast('CSV 已导出');
+}
+
 // ═══════════════════════════════════════
 // UTILS
 // ═══════════════════════════════════════
@@ -1710,6 +2398,7 @@ window.addEventListener('DOMContentLoaded',async()=>{
   await initSb();
   renderLibrary();
   updateBadges();
+  initRankLoad();
   // close modals on overlay click
   document.querySelectorAll('.overlay').forEach(el=>{
     el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');});

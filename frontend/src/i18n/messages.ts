@@ -1,0 +1,117 @@
+﻿import type { UiLanguage } from '@/hooks/useUiLanguage'
+
+export const messages = {
+  zh: {
+    shell: {
+      appName: '关键词矩阵',
+      appSub: '内容部署闭环系统',
+      groups: { ai: 'AI 工具', manage: '管理', overview: '概览' },
+      nav: {
+        recommend: '关键词推荐', analyze: '关键词分析', geoWriter: 'AI 写文章', imagePlanner: '配图分析', chat: 'AI 聊天', rank: '排名追踪', keywords: '关键词库', articles: '文章追踪', import: '批量导入', dashboard: '部署进度', matrix: '矩阵视图',
+      },
+      darkMode: '深色模式', language: '语言', configureApi: '配置 API 密钥', exportData: '导出数据', documentTitle: '关键词矩阵',
+    },
+    common: {
+      generating: '生成中...', analyzing: '分析中...', reload: '重载配置', save: '保存配置', noData: '暂无数据', copyFull: '复制全文', exportMd: '导出 MD', exportMdBusy: '导出中...', exportWord: '导出 Word', saveToArticles: '存入文章追踪', articleTracker: '文章追踪', adminMeta: 'Admin · SmartKey · 12 min read', add: '添加', edit: '编辑', remove: '删除', cancel: '取消', published: '已发布', draft: '草稿', pending: '未分配', planned: '已规划',
+    },
+    recommend: {
+      title: '关键词推荐', desc: '输入文章标题，AI 分析推荐关键词组合', cardTitle: '文章信息', articleTitle: '文章标题 *', articleTitlePlaceholder: '例：工业路由器在智能工厂中的 5 大应用场景', context: '行业背景（可选）', contextPlaceholder: '例：4G/5G 工业路由器，目标客户：工厂 IT 运维', count: '推荐数量', countSuffix: '个', types: '重点覆盖类型', submit: 'AI 推荐关键词', loading: '生成中...', resultTitle: '推荐结果', fallbackReason: 'AI 输出', addToLibrary: '加入关键词库', failed: '推荐失败', typeOptions: ['核心词', '长尾词', '场景词', '客户画像', '问答词', '竞品词', '品牌词'],
+    },
+    analyze: {
+      title: '关键词分析', desc: 'AI 深度分析搜索意图、竞争难度、内容建议', keyword: '要分析的关键词 *', keywordPlaceholder: '例：工业路由器选型', context: '行业背景（可选）', contextPlaceholder: '例：工业物联网、工厂自动化', submit: '深度分析', loading: '分析中...', failed: '分析失败', searchVolume: '搜索量', difficulty: '竞争难度', intent: '搜索意图', summaryEmpty: '暂无摘要', audience: '目标受众', audienceEmpty: '暂无受众信息', deploymentGuide: '部署建议', angle: '角度', summary: '摘要', related: '相关建议', noSuggestions: '暂无建议', keywordFallback: '关键词',
+    },
+    dashboard: {
+      title: '部署进度', desc: '关键词覆盖全局视图', total: '关键词总量', totalSub: '已收录到本地库', pending: '未分配', pendingSub: '等待规划', planned: '已规划', plannedSub: '待写作或发布', done: '已发布', doneSub: '已完成覆盖', coverage: '覆盖率', coverageSub: '整体进度', typeProgress: '类型进度', priorityProgress: '优先级分布', recent: '最近文章', emptyArticles: '暂无文章记录', updatedAt: '更新于', topPending: '待分配 Top 10', emptyPending: '当前没有待分配关键词', noNotes: '暂无备注', typeLabels: { core: '核心词', longtail: '长尾词', scenario: '场景词', persona: '客户画像', qa: '问答词', competitor: '竞品词', brand: '品牌词' }, priorityLabels: { high: '高', medium: '中', low: '低' },
+    },
+    keywords: {
+      title: '关键词库', desc: '所有关键词集中管理', addTitle: '添加关键词', keyword: '关键词 *', keywordPlaceholder: '输入关键词', type: '类型', priority: '优先级', notes: '备注（可选）', notesPlaceholder: '补充备注', search: '搜索关键词', allStatus: '全部状态', allTypes: '全部类型', defaultSort: '默认', alpha: '字母', typeSort: '类型', currentResults: '当前结果 {count} 条', table: ['关键词','类型','状态','优先级','关联文章','位置','备注','操作'], empty: '暂无关键词', typeLabels: { core: '核心词', longtail: '长尾词', scenario: '场景词', persona: '客户画像', qa: '问答词', competitor: '竞品词', brand: '品牌词' }, priorityLabels: { high: '高', medium: '中', low: '低' },
+    },
+    articles: {
+      title: '文章追踪', desc: '关键词覆盖与发布状态追踪', writer: 'GEO Writer', imagePlanner: '配图分析', manual: '手动添加', addTitle: '手动添加文章', articleTitle: '文章标题 *', related: '关联关键词（逗号分隔）', relatedPlaceholder: '输入已存在关键词', status: '状态', content: '正文', relatedCount: '个关联关键词', noRelated: '暂无关联关键词', noContent: '暂无正文内容', empty: '暂无文章记录',
+    },
+    geoWriter: {
+      title: 'AI 写文章', desc: '基于关键词自动生成 SEO 优化文章', settingsTitle: '文章设置', articleTitle: '文章标题 *', articleTitlePlaceholder: '例：工业路由器在 SCADA 系统中的应用', keywords: '目标关键词（逗号分隔）', keywordsPlaceholder: 'industrial router, SCADA system, remote monitoring', industry: '行业背景', industryPlaceholder: '例：工业物联网、SCADA、能源电力', articleType: '文章类型', targetLength: '目标字数', contentLanguage: '文章语言', contentBlocks: '内容模块组合', pickFromLibrary: '从关键词库选取', emptyKeywordLibrary: '关键词库为空', generate: 'AI 生成文章', history: '历史文章', noHistory: '暂无历史', generated: '文章草稿已生成。', saved: '已存入文章追踪。', configurationRequired: '尚未配置 {provider}，请先到设置页填写 API Key。', loadFailed: '页面加载失败。', generateFailed: '生成失败。', saveFailed: '保存失败。', exportFailed: '导出失败。', markdownExported: 'Markdown 已导出。', wordExported: 'Word 文档已导出。', emptyState: '填写左侧设置，点击「AI 生成文章」', toc: '目录', metaDescription: 'Meta Description', metaTitle: 'Meta Title', draftSections: '正文段落', faq: 'FAQ', sectionFallback: '章节', faqFallback: '问答', typeOptions: { blog: '博客文章（实用干货）', guide: '完整指南（深度长文）', compare: '对比评测（竞品分析）', case: '案例研究（客户故事）', faq: 'FAQ 问答页', landing: '落地页文案' }, contentBlocksOptions: { table_of_contents: '目录 Table of Contents', introduction: '导语 Introduction', technical_sections: '技术正文 Technical Sections', use_cases: '应用场景 Use Cases', feature_highlights: '产品亮点 Feature Highlights', faq: 'FAQ 问答', cta: '结尾 CTA' },
+    },
+    imagePlanner: {
+      title: '配图分析', desc: '单独分析文章哪些段落需要图片，并生成 AI 生图提示词', importCard: '导入文章', importFromArticles: '从文章追踪导入', chooseSaved: '选择已保存文章', importSelected: '导入所选文章', articleTitle: '文章标题', articleTitlePlaceholder: '例：工业路由器在 SCADA 系统中的应用', articleContent: '文章内容', articleContentPlaceholder: '也可以直接把写好的文章粘贴到这里', optionsCard: '分析选项', style: '图像风格', imageCount: '建议图片数量', analyze: 'AI 分析配图位置', analyzing: '分析中...', resultCard: '分析结果', empty: '导入文章后，AI 会输出建议配图段落、图片类型、用途说明和可直接用于生图的提示词。', suggested: '建议配图', why: '为什么这里要配图', prompt: 'AI 生图提示词', imported: '已导入文章内容。', analyzed: '配图分析完成。', failed: '配图分析失败。',
+    },
+    localData: {
+      title: '本地数据', desc: '导出、备份、导入、重置你的本地 SQLite 工作区', exportJson: '导出 JSON', backup: '创建备份', exported: '已导出当前本地快照', imported: '导入完成', createdBackup: '已创建备份', summary: '运行摘要', dbPath: '数据库路径', backupDir: '备份目录', dbSize: '数据库大小', tableRows: ['关键词记录','文章记录','GEO 草稿'], backups: '备份列表', noBackups: '暂无备份', importSnapshot: '导入快照', pasteJson: '粘贴导出的 JSON 数据', importBtn: '导入', danger: '危险操作', resetContent: '重置内容数据', resetAll: '重置全部数据', resetContentDone: '已重置内容数据', resetAllDone: '已重置全部本地数据',
+    },
+    chat: {
+      starter: '你好！我是你的 SEO 与内容策略助手。我可以帮助你处理关键词策略、内容结构、SEO 分析和 Google 收录建议。有什么想聊的？', suggestions: ['如何提升关键词排名？', 'SEO 文章结构怎么写？', '怎么快速让 Google 收录新页面？', '分析一下我的关键词库'], thinking: '思考中...', emptyReply: '没有返回内容', sendFailed: '发送失败', title: 'AI 聊天', desc: '询问 SEO 策略、内容创作、关键词建议', clear: '清空对话', cleared: '对话已清空，有什么新问题？', me: '我', inputPlaceholder: '输入问题… (Enter 发送，Shift+Enter 换行)', send: '发送',
+    },
+    bulkImport: {
+      title: '批量导入', desc: '文本批量导入关键词到总库', textImport: '文本导入', format: '每行一个关键词，格式：关键词,类型,备注', placeholder: 'industrial router,core,用于产品页\n5g gateway,longtail,用于博客文章', defaultLongtail: '默认：长尾词', defaultCore: '默认：核心词', defaultScenario: '默认：场景词', defaultPersona: '默认：客户画像', submit: '导入', imported: '已导入 {count} 条关键词', templates: '快速模板', hint: '点击加载行业模板，快速填充关键词',
+    },
+    matrix: {
+      title: '矩阵视图', desc: '按类型 × 状态查看关键词分布', count: '个关键词', rows: { core: '核心词', longtail: '长尾词', scenario: '场景词', persona: '客户画像', qa: '问答词', competitor: '竞品词', brand: '品牌词' }, cols: { pending: '未分配', planned: '已规划', done: '已发布' },
+    },
+    rank: {
+      title: '排名追踪', desc: '查询关键词在 Google 的排名（SerpAPI）', export: '导出 CSV', start: '开始追踪', settings: '追踪设置', serp: 'SerpAPI Key', serpHint: '获取：serpapi.com（每月100次免费）', domain: '目标域名', pages: '最大页数', region: '地区', keywords: '追踪关键词', keywordsHint: '每行一个，或从库中选择', importLibrary: '从关键词库导入', configMode: '当前为配置提示模式', progress: '追踪进度', waiting: '等待开始追踪', results: '排名结果', ready: '当前准备追踪 {count} 个关键词', noResults: '暂无排名结果', cols: ['关键词','排名','页码','排名 URL','查询时间'],
+    },
+    indexing: {
+      title: 'Google Indexing', desc: '索引检查与提交能力保持隔离，不影响核心流程', config: '配置状态', python: 'Python Path', google: 'Google Credentials', notConfigured: '未配置', workflow: '工作流说明', steps: ['在设置页填写 Python 可执行路径与 Google 凭证文件路径', '保持 Indexing 适配层可选，不影响 Dashboard、Keywords、Articles、GEO Writer', '配置完成后，这里再接入真实索引提交与检查任务'],
+    },
+    settings: {
+      title: '配置 API 密钥', desc: '管理本地默认设置、AI Provider 与可选集成', modalTitle: '配置 API 密钥', modalDesc: 'AI 默认通过后端调用 Gemini 或 MiniMax。密钥保存在本地 SQLite 设置表中，不会从前端直接调用模型。', geminiKey: 'Gemini API Key', geminiTag: 'Google · 免费配额', minimaxKey: 'MiniMax API Key', minimaxTag: '备用 Provider', toggleMask: '显示或隐藏', geminiConfigured: '已配置 Gemini Key', geminiMissing: '未配置 Gemini Key', minimaxConfigured: '已配置 MiniMax Key', minimaxMissing: '未配置 MiniMax Key', geminiGuideTitle: '如何获取 Gemini API Key：', geminiGuideSteps: ['访问 aistudio.google.com/apikey，使用 Google 账号登录', '点击 Create API key 并选择项目，然后复制 Key', 'Key 通常以 AIza 开头，GEO Writer、推荐、分析、聊天都会通过后端使用它'], optionalMinimax: '可选 · MiniMax Provider', defaults: '默认设置', defaultProvider: '默认 AI Provider', language: '语言', defaultContentLanguage: '默认文章语言', defaultMarket: '默认市场', defaultTone: '默认语气', defaultArticleType: '默认文章类型', seoIntegrations: '可选 · SEO 集成', serpapi: 'SerpAPI Key', pythonPath: 'Python Path', googleCreds: 'Google Credentials Path', saved: '配置已保存。', effectiveReady: '可生效', notConfigured: '未配置', enabled: '已启用', disabled: '已停用', howToGetApi: '如何获取 API', openOfficialSite: '打开官方入口', steps: '获取步骤', notes: '说明', indexingCredentialsGuideTitle: 'Google Credentials 获取与配置说明',
+    },
+  },
+  en: {
+    shell: {
+      appName: 'Keyword Matrix',
+      appSub: 'Content Deployment Workbench',
+      groups: { ai: 'AI Tools', manage: 'Management', overview: 'Overview' },
+      nav: {
+        recommend: 'Keyword Recommendations', analyze: 'Keyword Analysis', geoWriter: 'AI Writer', imagePlanner: 'Image Planner', chat: 'AI Chat', rank: 'Rank Tracker', keywords: 'Keyword Library', articles: 'Article Tracker', import: 'Bulk Import', dashboard: 'Deployment Progress', matrix: 'Matrix View',
+      },
+      darkMode: 'Dark Mode', language: 'Language', configureApi: 'Configure API Keys', exportData: 'Export Data', documentTitle: 'Keyword Matrix',
+    },
+    common: {
+      generating: 'Generating...', analyzing: 'Analyzing...', reload: 'Reload Settings', save: 'Save Settings', noData: 'No data yet', copyFull: 'Copy Full Draft', exportMd: 'Export MD', exportMdBusy: 'Exporting...', exportWord: 'Export Word', saveToArticles: 'Save to Article Tracker', articleTracker: 'Article Tracker', adminMeta: 'Admin · SmartKey · 12 min read', add: 'Add', edit: 'Edit', remove: 'Delete', cancel: 'Cancel', published: 'Published', draft: 'Draft', pending: 'Pending', planned: 'Planned',
+    },
+    recommend: {
+      title: 'Keyword Recommendations', desc: 'Enter an article topic and let AI suggest keyword combinations', cardTitle: 'Article Information', articleTitle: 'Article Title *', articleTitlePlaceholder: 'Example: 5 applications of industrial routers in smart factories', context: 'Industry Context (Optional)', contextPlaceholder: 'Example: 4G/5G industrial routers, target users: factory IT operations', count: 'Recommendation Count', countSuffix: '', types: 'Priority Coverage Types', submit: 'Generate Keyword Ideas', loading: 'Generating...', resultTitle: 'Recommendation Results', fallbackReason: 'AI output', addToLibrary: 'Add to Library', failed: 'Recommendation failed', typeOptions: ['Core Term', 'Long-tail Term', 'Scenario Term', 'Customer Persona', 'Question Term', 'Competitor Term', 'Brand Term'],
+    },
+    analyze: {
+      title: 'Keyword Analysis', desc: 'AI analysis of search intent, competition, and content direction', keyword: 'Keyword to Analyze *', keywordPlaceholder: 'Example: industrial router selection', context: 'Industry Context (Optional)', contextPlaceholder: 'Example: industrial IoT, factory automation', submit: 'Run Deep Analysis', loading: 'Analyzing...', failed: 'Analysis failed', searchVolume: 'Search Volume', difficulty: 'Difficulty', intent: 'Search Intent', summaryEmpty: 'No summary yet', audience: 'Target Audience', audienceEmpty: 'No audience insights yet', deploymentGuide: 'Deployment Guidance', angle: 'Angle', summary: 'Summary', related: 'Related Suggestions', noSuggestions: 'No suggestions yet', keywordFallback: 'Keyword',
+    },
+    dashboard: {
+      title: 'Deployment Progress', desc: 'Global view of keyword coverage', total: 'Total Keywords', totalSub: 'Stored in local library', pending: 'Unassigned', pendingSub: 'Waiting for planning', planned: 'Planned', plannedSub: 'Waiting for writing or publishing', done: 'Published', doneSub: 'Coverage completed', coverage: 'Coverage', coverageSub: 'Overall progress', typeProgress: 'Type Progress', priorityProgress: 'Priority Distribution', recent: 'Recent Articles', emptyArticles: 'No articles yet', updatedAt: 'Updated', topPending: 'Top 10 Pending', emptyPending: 'No pending keywords', noNotes: 'No notes yet', typeLabels: { core: 'Core Terms', longtail: 'Long-tail Terms', scenario: 'Scenario Terms', persona: 'Personas', qa: 'Question Terms', competitor: 'Competitor Terms', brand: 'Brand Terms' }, priorityLabels: { high: 'High', medium: 'Medium', low: 'Low' },
+    },
+    keywords: {
+      title: 'Keyword Library', desc: 'Manage all keywords in one place', addTitle: 'Add Keyword', keyword: 'Keyword *', keywordPlaceholder: 'Enter keyword', type: 'Type', priority: 'Priority', notes: 'Notes (Optional)', notesPlaceholder: 'Add context', search: 'Search keywords', allStatus: 'All status', allTypes: 'All types', defaultSort: 'Default', alpha: 'Alphabetical', typeSort: 'By type', currentResults: '{count} results', table: ['Keyword','Type','Status','Priority','Related Article','Position','Notes','Actions'], empty: 'No keywords yet', typeLabels: { core: 'Core Term', longtail: 'Long-tail', scenario: 'Scenario', persona: 'Persona', qa: 'Question', competitor: 'Competitor', brand: 'Brand' }, priorityLabels: { high: 'High', medium: 'Medium', low: 'Low' },
+    },
+    articles: {
+      title: 'Article Tracker', desc: 'Track keyword coverage and publishing status', writer: 'GEO Writer', imagePlanner: 'Image Planner', manual: 'Add Manually', addTitle: 'Add Article Manually', articleTitle: 'Article Title *', related: 'Related Keywords (comma separated)', relatedPlaceholder: 'Enter existing keywords', status: 'Status', content: 'Content', relatedCount: 'related keywords', noRelated: 'No related keywords', noContent: 'No content yet', empty: 'No articles yet',
+    },
+    geoWriter: {
+      title: 'AI Writer', desc: 'Generate SEO-ready articles from keywords', settingsTitle: 'Article Settings', articleTitle: 'Article Title *', articleTitlePlaceholder: 'Example: Applications of Industrial Routers in SCADA Systems', keywords: 'Target Keywords (comma separated)', keywordsPlaceholder: 'industrial router, SCADA system, remote monitoring', industry: 'Industry Context', industryPlaceholder: 'Example: Industrial IoT, SCADA, energy and utilities', articleType: 'Article Type', targetLength: 'Target Length', contentLanguage: 'Content Language', contentBlocks: 'Content Block Mix', pickFromLibrary: 'Pick from Keyword Library', emptyKeywordLibrary: 'Keyword library is empty', generate: 'Generate Article', history: 'Article History', noHistory: 'No drafts yet', generated: 'Draft generated.', saved: 'Saved to article tracker.', configurationRequired: '{provider} is not configured yet. Add the API key in Settings first.', loadFailed: 'Failed to load the page.', generateFailed: 'Generation failed.', saveFailed: 'Save failed.', exportFailed: 'Export failed.', markdownExported: 'Markdown exported.', wordExported: 'Word document exported.', emptyState: 'Fill in the settings on the left and click Generate Article.', toc: 'Table of Contents', metaDescription: 'Meta Description', metaTitle: 'Meta Title', draftSections: 'Draft Sections', faq: 'FAQ', sectionFallback: 'Section', faqFallback: 'FAQ', typeOptions: { blog: 'Blog Article', guide: 'Complete Guide', compare: 'Comparison Article', case: 'Case Study', faq: 'FAQ Page', landing: 'Landing Page Copy' }, contentBlocksOptions: { table_of_contents: 'Table of Contents', introduction: 'Introduction', technical_sections: 'Technical Sections', use_cases: 'Use Cases', feature_highlights: 'Feature Highlights', faq: 'FAQ', cta: 'Closing CTA' },
+    },
+    imagePlanner: {
+      title: 'Image Planner', desc: 'Analyze where the article needs images and generate AI-ready prompts', importCard: 'Import Article', importFromArticles: 'Import from Article Tracker', chooseSaved: 'Choose a saved article', importSelected: 'Import selected article', articleTitle: 'Article Title', articleTitlePlaceholder: 'Example: Applications of Industrial Routers in SCADA Systems', articleContent: 'Article Content', articleContentPlaceholder: 'You can also paste the finished article here', optionsCard: 'Analysis Options', style: 'Image Style', imageCount: 'Recommended Image Count', analyze: 'Analyze Image Placements', analyzing: 'Analyzing...', resultCard: 'Analysis Results', empty: 'After importing the article, AI will suggest placements, image types, reasons, and ready-to-use prompts.', suggested: 'Suggested image', why: 'Why this section needs an image', prompt: 'AI image prompt', imported: 'Article content imported.', analyzed: 'Image analysis completed.', failed: 'Image analysis failed.',
+    },
+    localData: {
+      title: 'Local Data', desc: 'Export, back up, import, and reset your local SQLite workspace', exportJson: 'Export JSON', backup: 'Create Backup', exported: 'Local snapshot exported.', imported: 'Import completed.', createdBackup: 'Backup created.', summary: 'Runtime Summary', dbPath: 'Database Path', backupDir: 'Backup Directory', dbSize: 'Database Size', tableRows: ['Keyword Records','Article Records','GEO Drafts'], backups: 'Backup List', noBackups: 'No backups yet', importSnapshot: 'Import Snapshot', pasteJson: 'Paste exported JSON data', importBtn: 'Import', danger: 'Danger Zone', resetContent: 'Reset Content Data', resetAll: 'Reset All Data', resetContentDone: 'Content data reset.', resetAllDone: 'All local data reset.',
+    },
+    chat: {
+      starter: 'Hi! I am your SEO and content strategy assistant. I can help with keyword planning, content structure, SEO analysis, and Google indexing guidance. What would you like to explore?', suggestions: ['How can I improve keyword rankings?', 'How should an SEO article be structured?', 'How can I get Google to index a new page faster?', 'Analyze my keyword library'], thinking: 'Thinking...', emptyReply: 'No reply returned', sendFailed: 'Message failed', title: 'AI Chat', desc: 'Ask about SEO strategy, content creation, and keyword ideas', clear: 'Clear Chat', cleared: 'Conversation cleared. What should we work on next?', me: 'Me', inputPlaceholder: 'Type your question… (Enter to send, Shift+Enter for newline)', send: 'Send',
+    },
+    bulkImport: {
+      title: 'Bulk Import', desc: 'Import keywords into the library from plain text', textImport: 'Text Import', format: 'One keyword per line. Format: keyword,type,notes', placeholder: 'industrial router,core,for product page\n5g gateway,longtail,for blog article', defaultLongtail: 'Default: Long-tail', defaultCore: 'Default: Core', defaultScenario: 'Default: Scenario', defaultPersona: 'Default: Persona', submit: 'Import', imported: 'Imported {count} keywords', templates: 'Quick Templates', hint: 'Load an industry template to prefill keywords',
+    },
+    matrix: {
+      title: 'Matrix View', desc: 'View keyword distribution by type × status', count: 'keywords', rows: { core: 'Core Terms', longtail: 'Long-tail Terms', scenario: 'Scenario Terms', persona: 'Personas', qa: 'Question Terms', competitor: 'Competitor Terms', brand: 'Brand Terms' }, cols: { pending: 'Pending', planned: 'Planned', done: 'Published' },
+    },
+    rank: {
+      title: 'Rank Tracker', desc: 'Track keyword rankings on Google with SerpAPI', export: 'Export CSV', start: 'Start Tracking', settings: 'Tracking Settings', serp: 'SerpAPI Key', serpHint: 'Get it from serpapi.com (100 free searches/month)', domain: 'Target Domain', pages: 'Max Pages', region: 'Region', keywords: 'Tracked Keywords', keywordsHint: 'One per line or import from your library', importLibrary: 'Import from Library', configMode: 'Configuration guidance mode', progress: 'Tracking Progress', waiting: 'Waiting to start', results: 'Ranking Results', ready: '{count} keywords ready to track', noResults: 'No ranking results yet', cols: ['Keyword','Rank','Page','Ranking URL','Checked At'],
+    },
+    indexing: {
+      title: 'Google Indexing', desc: 'Index checks and submission stay isolated from the core workflow', config: 'Configuration Status', python: 'Python Path', google: 'Google Credentials', notConfigured: 'Not configured', workflow: 'Workflow Notes', steps: ['Set the Python executable path and Google credentials file in Settings', 'Keep the indexing adapter optional so Dashboard, Keywords, Articles, and GEO Writer remain usable', 'Once configured, this page can connect to real indexing checks and submission jobs'],
+    },
+    settings: {
+      title: 'Configure API Keys', desc: 'Manage local defaults, AI providers, and optional integrations', modalTitle: 'Configure API Keys', modalDesc: 'AI requests go through the backend with Gemini or MiniMax. Keys are stored in the local SQLite settings table and never called directly from the frontend.', geminiKey: 'Gemini API Key', geminiTag: 'Google · Free tier', minimaxKey: 'MiniMax API Key', minimaxTag: 'Secondary provider', toggleMask: 'Show or hide', geminiConfigured: 'Gemini key configured', geminiMissing: 'Gemini key not configured', minimaxConfigured: 'MiniMax key configured', minimaxMissing: 'MiniMax key not configured', geminiGuideTitle: 'How to get a Gemini API key:', geminiGuideSteps: ['Open aistudio.google.com/apikey and sign in with your Google account', 'Click Create API key, choose a project, and copy the key', 'Keys usually start with AIza. GEO Writer, recommendations, analysis, and chat all use it through the backend'], optionalMinimax: 'Optional · MiniMax Provider', defaults: 'Default Settings', defaultProvider: 'Default AI Provider', language: 'Language', defaultContentLanguage: 'Default Content Language', defaultMarket: 'Default Market', defaultTone: 'Default Tone', defaultArticleType: 'Default Article Type', seoIntegrations: 'Optional · SEO Integrations', serpapi: 'SerpAPI Key', pythonPath: 'Python Path', googleCreds: 'Google Credentials Path', saved: 'Settings saved.', effectiveReady: 'Ready', notConfigured: 'Not configured', enabled: 'Enabled', disabled: 'Disabled', howToGetApi: 'How to get API', openOfficialSite: 'Open official site', steps: 'Steps', notes: 'Notes', indexingCredentialsGuideTitle: 'Google credentials setup guide',
+    },
+  },
+} as const satisfies Record<UiLanguage, any>
+

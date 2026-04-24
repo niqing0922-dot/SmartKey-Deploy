@@ -1,0 +1,70 @@
+{
+  "name": "smartkey-deploy",
+  "version": "2.0.0",
+  "description": "SmartKey local-first SEO and GEO workbench",
+  "private": true,
+  "main": "desktop/main.cjs",
+  "author": "SmartKey",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "python -m uvicorn backend.main:app --host 127.0.0.1 --port 3000 --reload",
+    "serve:test": "node ./tests/support/start-backend-test-server.mjs 3000",
+    "build": "cd frontend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "desktop": "npm run build:frontend && electron ./desktop/main.cjs",
+    "package:portable": "npm run build:frontend && powershell -ExecutionPolicy Bypass -File ./scripts/package-portable.ps1",
+    "smoke:portable": "powershell -ExecutionPolicy Bypass -File ./scripts/smoke-portable.ps1",
+    "package:win": "npm run build:frontend && electron-builder --win portable",
+    "preview": "cd frontend && npm run preview",
+    "test:e2e": "playwright test",
+    "test:prod-smoke": "node ./tests/smoke/run-prod-smoke.mjs",
+    "check:frontend": "npm --prefix frontend run typecheck",
+    "check:frontend:lint": "npm --prefix frontend run lint",
+    "check:backend": "python -m compileall backend",
+    "check:api": "python -m pytest tests/api -q",
+    "check:docs": "node ./tests/quality/docs-reality-check.mjs",
+    "check:tokens": "node ./tests/quality/design-token-check.mjs",
+    "check:prod": "npm run build:frontend && npm run test:prod-smoke",
+    "check:e2e": "npm run build:frontend && playwright test",
+    "check:fast": "npm run check:frontend && npm run check:backend && npm run check:api && npm run check:docs && npm run check:tokens && npm run check:prod",
+    "check:prepush": "npm run check:fast && npm run check:e2e",
+    "check:all": "npm run check:fast && npm run check:e2e",
+    "ci": "npm run check:all"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "concurrently": "^9.2.1",
+    "electron-builder": "^26.0.12",
+    "electron": "^37.4.0",
+    "playwright": "^1.59.1"
+  },
+  "build": {
+    "appId": "com.smartkey.deploy",
+    "productName": "SmartKey",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**/*",
+      "backend/**/*",
+      "frontend/dist/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "backend/**/*",
+      "frontend/dist/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}
