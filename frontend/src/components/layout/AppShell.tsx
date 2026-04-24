@@ -88,7 +88,9 @@ function navTestId(path: string) {
 
 export function AppShell() {
   const navigate = useNavigate()
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return window.localStorage.getItem('smartkey.theme') === 'dark' ? 'dark' : 'light'
+  })
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const language = useUiLanguage()
   const copy = messages[language].shell
@@ -99,6 +101,7 @@ export function AppShell() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
+    window.localStorage.setItem('smartkey.theme', theme)
   }, [theme])
 
   useEffect(() => {

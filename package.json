@@ -26,9 +26,10 @@
     "check:api": "python -m pytest tests/api -q",
     "check:docs": "node ./tests/quality/docs-reality-check.mjs",
     "check:tokens": "node ./tests/quality/design-token-check.mjs",
+    "check:theme": "node ./tests/quality/theme-consistency-check.mjs",
     "check:prod": "npm run build:frontend && npm run test:prod-smoke",
     "check:e2e": "npm run build:frontend && playwright test",
-    "check:fast": "npm run check:frontend && npm run check:backend && npm run check:api && npm run check:docs && npm run check:tokens && npm run check:prod",
+    "check:fast": "npm run check:frontend && npm run check:backend && npm run check:api && npm run check:docs && npm run check:tokens && npm run check:prod && npm run check:theme",
     "check:prepush": "npm run check:fast && npm run check:e2e",
     "check:all": "npm run check:fast && npm run check:e2e",
     "ci": "npm run check:all"

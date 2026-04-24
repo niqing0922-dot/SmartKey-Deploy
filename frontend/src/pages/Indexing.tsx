@@ -63,7 +63,8 @@ function inferSiteUrlFromInput(siteUrl: string, urls: string[]): string {
 
 export function IndexingPage() {
   const navigate = useNavigate()
-  const { language } = useI18n()
+  const { t } = useI18n()
+  const copy = t.indexing
 
   const [settings, setSettings] = useState<SettingsItem | null>(null)
   const [jobs, setJobs] = useState<any[]>([])
@@ -176,14 +177,14 @@ export function IndexingPage() {
         if (!cancelled) setSettings(settingData)
       } catch (issue: any) {
         if (!cancelled) {
-          setError(issue?.response?.data?.detail || issue?.message || 'Failed to load settings')
+          setError(issue?.response?.data?.detail || issue?.message || copy.settingsLoadFailed)
         }
       }
       try {
         await loadJobs(false)
       } catch (issue: any) {
         if (!cancelled) {
-          setError(issue?.response?.data?.detail || issue?.message || 'Failed to load indexing jobs')
+          setError(issue?.response?.data?.detail || issue?.message || copy.jobsLoadFailed)
         }
       }
     })()
@@ -217,13 +218,13 @@ export function IndexingPage() {
       setError('')
     } else {
       setParseSource('none')
-      setError(language === 'zh' ? '本地解析未找到 URL，可尝试 AI 兜底解析。' : 'Local parser found no URLs. You can try AI fallback.')
+      setError(copy.localParseFailed)
     }
   }
 
   const handleAiFallback = async () => {
     if (!uploadedText.trim()) {
-      setError(language === 'zh' ? '请先上传文件。' : 'Please upload a file first.')
+      setError(copy.uploadFirst)
       return
     }
     setAiProcessing(true)
@@ -232,13 +233,13 @@ export function IndexingPage() {
       const result = await aiApi.indexingUrlExtract({ text: uploadedText, filename: uploadedFileName })
       const aiUrls = result?.urls || []
       if (!aiUrls.length) {
-        setError(language === 'zh' ? 'AI 未识别到 URL。' : 'AI did not find any URLs.')
+        setError(copy.aiNoUrls)
         return
       }
       setUrlsText(aiUrls.join('\n'))
       setParseSource('ai')
     } catch {
-      setError(language === 'zh' ? 'AI 兜底解析失败。' : 'AI fallback parsing failed.')
+      setError(copy.aiParseFailed)
     } finally {
       setAiProcessing(false)
     }
@@ -264,16 +265,16 @@ export function IndexingPage() {
       await loadJobs()
       if (result?.job_id) setSelectedJobId(result.job_id)
     } catch (issue: any) {
-      setError(issue?.response?.data?.detail || issue?.message || 'Failed to run indexing job')
+      setError(issue?.response?.data?.detail || issue?.message || copy.runFailed)
     } finally {
       setRunning(false)
     }
   }
 
   const exportCsv = () => {
-    const headers = ['URL', 'Indexed', 'Coverage / State', 'Last Crawl / Checked', 'Error']
+    const headers = copy.table
     const lines = filteredPages.map((item) => {
-      const indexed = item.indexed === null || item.indexed === undefined ? 'Unknown' : item.indexed ? 'Yes' : 'No'
+      const indexed = item.indexed === null || item.indexed === undefined ? copy.unknown : item.indexed ? copy.yes : copy.no
       const status = item.coverage || item.indexing_state || item.status_message || ''
       const checked = item.last_crawl || item.checked_at || ''
       return [toCsvCell(item.url || ''), toCsvCell(indexed), toCsvCell(status), toCsvCell(checked), toCsvCell(item.error || '')].join(',')
@@ -293,57 +294,57 @@ export function IndexingPage() {
       <div className="page-header linear-page-header">
         <div>
           <div className="page-title">Google Indexing</div>
-          <div className="page-desc">{language === 'zh' ? '输入网址或文件，一键检查是否被 Google 索引。' : 'Input URL or file and check Google indexing in one click.'}</div>
+          <div className="page-desc">{copy.desc}</div>
         </div>
-        <div className="linear-header-meta"><span>{pages.length} pages</span></div>
+        <div className="linear-header-meta"><span>{pages.length} {copy.pages}</span></div>
       </div>
 
       <div className="page-body linear-workbench ai-linear-workbench">
         <section className="linear-left">
           <div className="settings-status-strip" style={{ position: 'static', paddingTop: 0 }}>
             <span className={hasGoogleCreds ? 'status-chip ready' : 'status-chip warn'}>
-              Credentials: {hasGoogleCreds ? (language === 'zh' ? '可用' : 'Ready') : (language === 'zh' ? '缺失' : 'Missing')}
+              {copy.credentials}: {hasGoogleCreds ? copy.ready : copy.missing}
             </span>
             <span className={indexingEnabled ? 'status-chip ready' : 'status-chip warn'}>
-              Indexing: {indexingEnabled ? (language === 'zh' ? '已启用' : 'Enabled') : (language === 'zh' ? '已停用' : 'Disabled')}
+              {copy.indexing}: {indexingEnabled ? copy.enabled : copy.disabled}
             </span>
-            <span className="status-chip muted">{language === 'zh' ? '待检查 URL：' : 'Pending URLs: '}{urls.length}</span>
-            <span className="status-chip muted">{language === 'zh' ? '最近任务：' : 'Last run: '}{lastRunAt ? new Date(lastRunAt).toLocaleString() : '-'}</span>
+            <span className="status-chip muted">{copy.pendingUrls}{urls.length}</span>
+            <span className="status-chip muted">{copy.lastRun}{lastRunAt ? new Date(lastRunAt).toLocaleString() : '-'}</span>
           </div>
 
           {!isReady ? (
             <div className="alert alert-warn">
-              <div>{jobsMessage || (language === 'zh' ? '请先在设置页配置 Google Credentials 并启用 Indexing。' : 'Please configure Google Credentials and enable Indexing in Settings.')}</div>
+              <div>{jobsMessage || copy.setupRequired}</div>
               <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => navigate('/settings')}>
-                {language === 'zh' ? '打开设置' : 'Open Settings'}
+                {copy.openSettings}
               </button>
             </div>
           ) : null}
 
           <div className="rank-section">
-            <div className="linear-panel-title">{language === 'zh' ? '主输入' : 'Primary Input'}</div>
+            <div className="linear-panel-title">{copy.primaryInput}</div>
             <div className="linear-inspector-grid">
               <div className="field-block">
-                <label>{language === 'zh' ? '网址/站点网址' : 'URL / Site URL'}</label>
+                <label>{copy.siteUrl}</label>
                 <input value={siteUrl} onChange={(event) => setSiteUrl(event.target.value)} placeholder="https://example.com/page" />
               </div>
               <div className="field-block">
-                <label>{language === 'zh' ? '上传 URL 文件（txt/csv/xml/html/md）' : 'Upload URL file (txt/csv/xml/html/md)'}</label>
+                <label>{copy.uploadFile}</label>
                 <input type="file" accept=".txt,.csv,.xml,.html,.md" onChange={handleImportFile} />
               </div>
               <div className="field-block">
-                <label>{language === 'zh' ? '解析后的 URL 列表' : 'Parsed URLs'}</label>
+                <label>{copy.parsedUrls}</label>
                 <textarea rows={8} value={urlsText} onChange={(event) => setUrlsText(event.target.value)} placeholder={'https://example.com/a\nhttps://example.com/b'} />
               </div>
               <div className="rank-action-row">
                 <button className="btn btn-sm" onClick={handleAiFallback} disabled={!uploadedText || aiProcessing}>
-                  {aiProcessing ? (language === 'zh' ? 'AI 处理中...' : 'AI Processing...') : (language === 'zh' ? 'AI 兜底解析' : 'AI Fallback Parse')}
+                  {aiProcessing ? copy.aiProcessing : copy.aiFallback}
                 </button>
                 <button className="btn btn-sm" onClick={() => setUrlsText('')}>
-                  {language === 'zh' ? '清空 URL 列表' : 'Clear URLs'}
+                  {copy.clearUrls}
                 </button>
                 {parseSource !== 'none' ? (
-                  <span className="muted-text">{language === 'zh' ? '解析来源：' : 'Parse source: '}{parseSource === 'local' ? 'Local Parser' : 'AI Fallback'}</span>
+                  <span className="muted-text">{copy.parseSource}{parseSource === 'local' ? copy.localParser : copy.aiFallbackSource}</span>
                 ) : null}
               </div>
             </div>
@@ -351,42 +352,42 @@ export function IndexingPage() {
 
           <div className="rank-section">
             <button className="btn btn-sm" onClick={() => setShowAdvanced((current) => !current)}>
-              {showAdvanced ? (language === 'zh' ? '收起高级设置' : 'Hide Advanced Settings') : (language === 'zh' ? '高级设置' : 'Advanced Settings')}
+              {showAdvanced ? copy.advancedHide : copy.advancedShow}
             </button>
             {showAdvanced ? (
               <div className="linear-inspector-grid rank-form-grid" style={{ marginTop: 10 }}>
                 <div className="field-block">
-                  <label>Action</label>
+                  <label>{copy.action}</label>
                   <select value={action} onChange={(event) => setAction(event.target.value as 'inspect' | 'submit')}>
-                    <option value="inspect">inspect</option>
-                    <option value="submit">submit</option>
+                    <option value="inspect">{copy.actionInspect}</option>
+                    <option value="submit">{copy.actionSubmit}</option>
                   </select>
                 </div>
                 <div className="field-block">
-                  <label>Max Pages</label>
+                  <label>{copy.maxPages}</label>
                   <input value={maxPages} onChange={(event) => setMaxPages(event.target.value)} />
                 </div>
                 <div className="field-block">
-                  <label>Crawl Delay</label>
+                  <label>{copy.crawlDelay}</label>
                   <input value={crawlDelay} onChange={(event) => setCrawlDelay(event.target.value)} />
                 </div>
                 <div className="field-block">
-                  <label>Check Delay</label>
+                  <label>{copy.checkDelay}</label>
                   <input value={checkDelay} onChange={(event) => setCheckDelay(event.target.value)} />
                 </div>
                 <div className="field-block">
-                  <label>Submission Type</label>
+                  <label>{copy.submissionType}</label>
                   <select value={submissionType} onChange={(event) => setSubmissionType(event.target.value as 'URL_UPDATED' | 'URL_DELETED')}>
                     <option value="URL_UPDATED">URL_UPDATED</option>
                     <option value="URL_DELETED">URL_DELETED</option>
                   </select>
                 </div>
                 <div className="field-block">
-                  <label>Max Retries</label>
+                  <label>{copy.maxRetries}</label>
                   <input value={maxRetries} onChange={(event) => setMaxRetries(event.target.value)} />
                 </div>
                 <div className="field-block">
-                  <label>{language === 'zh' ? 'URL 文件路径（服务端）' : 'URL file path (server-side)'}</label>
+                  <label>{copy.serverFilePath}</label>
                   <input value={urlFilePath} onChange={(event) => setUrlFilePath(event.target.value)} placeholder="D:\\data\\urls.txt" />
                 </div>
               </div>
@@ -394,7 +395,7 @@ export function IndexingPage() {
           </div>
 
           <button className="btn btn-primary btn-full" onClick={run} disabled={!canRun}>
-            {running ? (language === 'zh' ? '检查中...' : 'Running...') : (language === 'zh' ? '开始检查索引' : 'Start Indexing Check')}
+            {running ? copy.running : copy.start}
           </button>
           {error ? <div className="alert alert-error" style={{ marginTop: 10 }}>{error}</div> : null}
           {jobsStatus === 'configuration_required' && jobsMessage ? <div className="alert alert-warn" style={{ marginTop: 10 }}>{jobsMessage}</div> : null}
@@ -402,33 +403,29 @@ export function IndexingPage() {
 
         <section className="linear-main ai-main-panel">
           <div className="linear-table-tools">
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={language === 'zh' ? '搜索 URL / 状态 / 错误' : 'Search URL / status / error'} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} />
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | 'indexed' | 'not_indexed' | 'error')}>
-              <option value="all">All</option>
-              <option value="indexed">Indexed</option>
-              <option value="not_indexed">Not indexed</option>
-              <option value="error">Error</option>
+              <option value="all">{copy.all}</option>
+              <option value="indexed">{copy.indexed}</option>
+              <option value="not_indexed">{copy.notIndexed}</option>
+              <option value="error">{copy.error}</option>
             </select>
-            <button className="btn btn-sm" onClick={exportCsv} disabled={!filteredPages.length}>Export CSV</button>
+            <button className="btn btn-sm" onClick={exportCsv} disabled={!filteredPages.length}>{copy.exportCsv}</button>
           </div>
           <div className="linear-table-wrap">
             <table className="tbl linear-table table-comfort">
               <thead>
                 <tr>
-                  <th>URL</th>
-                  <th>{language === 'zh' ? '是否已索引' : 'Indexed'}</th>
-                  <th>{language === 'zh' ? '覆盖/索引状态' : 'Coverage / State'}</th>
-                  <th>{language === 'zh' ? '最近检查' : 'Last Checked'}</th>
-                  <th>{language === 'zh' ? '错误' : 'Error'}</th>
+                  {copy.table.map((header) => <th key={header}>{header}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {!pagedPages.length ? (
-                  <tr><td colSpan={5}><div className="empty">{language === 'zh' ? '暂无索引结果' : 'No indexing pages yet'}</div></td></tr>
+                  <tr><td colSpan={5}><div className="empty">{copy.empty}</div></td></tr>
                 ) : pagedPages.map((item, index) => (
                   <tr key={`${item.url}-${index}`}>
                     <td title={item.url}>{item.url}</td>
-                    <td>{item.indexed === null || item.indexed === undefined ? (language === 'zh' ? '未知' : 'Unknown') : item.indexed ? (language === 'zh' ? '是' : 'Yes') : (language === 'zh' ? '否' : 'No')}</td>
+                    <td>{item.indexed === null || item.indexed === undefined ? copy.unknown : item.indexed ? copy.yes : copy.no}</td>
                     <td>{item.coverage || item.indexing_state || item.status_message || '-'}</td>
                     <td>{item.last_crawl || (item.checked_at ? new Date(item.checked_at).toLocaleString() : '-')}</td>
                     <td>{item.error || '-'}</td>
@@ -438,26 +435,26 @@ export function IndexingPage() {
             </table>
           </div>
           <div className="linear-table-footer">
-            <span>{filteredPages.length} rows</span>
+            <span>{filteredPages.length} {copy.rows}</span>
             <div className="linear-pager">
               <select value={pageSize} onChange={(event) => setPageSize(event.target.value)}>
-                <option value="10">10 / page</option>
-                <option value="20">20 / page</option>
-                <option value="50">50 / page</option>
+                <option value="10">10 {copy.pageSize}</option>
+                <option value="20">20 {copy.pageSize}</option>
+                <option value="50">50 {copy.pageSize}</option>
               </select>
-              <button className="btn btn-xs" onClick={() => setPageIndex((p) => Math.max(1, p - 1))} disabled={pageIndex <= 1}>Prev</button>
+              <button className="btn btn-xs" onClick={() => setPageIndex((p) => Math.max(1, p - 1))} disabled={pageIndex <= 1}>{copy.prev}</button>
               <span>{pageIndex} / {totalPages}</span>
-              <button className="btn btn-xs" onClick={() => setPageIndex((p) => Math.min(totalPages, p + 1))} disabled={pageIndex >= totalPages}>Next</button>
+              <button className="btn btn-xs" onClick={() => setPageIndex((p) => Math.min(totalPages, p + 1))} disabled={pageIndex >= totalPages}>{copy.next}</button>
             </div>
           </div>
         </section>
 
         <section className="linear-right">
-          <div className="linear-panel-title">{language === 'zh' ? '历史任务' : 'History'}</div>
+          <div className="linear-panel-title">{copy.history}</div>
           <div className="geo-history-list">
-            {!jobs.length ? <span className="muted-text">{language === 'zh' ? '暂无任务' : 'No jobs yet'}</span> : jobs.map((job) => (
+            {!jobs.length ? <span className="muted-text">{copy.noJobs}</span> : jobs.map((job) => (
               <button key={job.id} className={`draft-item geo-history-item ${selectedJobId === job.id ? 'active' : ''}`} onClick={() => setSelectedJobId(job.id)}>
-                <strong className="geo-history-title">{job.action}</strong>
+                <strong className="geo-history-title">{job.action === 'submit' ? copy.actionSubmit : copy.actionInspect}</strong>
                 <span className="muted-text">{job.site_url || '-'} / {(job.summary?.total ?? 0)}</span>
               </button>
             ))}
