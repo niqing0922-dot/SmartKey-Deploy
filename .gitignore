@@ -12,6 +12,7 @@
 
 # Generated artifacts
 /.artifacts/
+/release/
 /playwright-report/
 /test-results/
 *.log
@@ -25,6 +26,8 @@ npm-debug.log*
 # Local app runtime data
 /backend/data/
 /backend/backups/
+/backend/test-results/
+/backend/tmp-app-data/
 
 # Tool caches and generated result files
 /tools/google-indexing/cache/
