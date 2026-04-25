@@ -195,3 +195,27 @@ export interface RuntimeDiagnostics {
   recent_errors: Array<Record<string, unknown>>
   recent_events: Array<Record<string, unknown>>
 }
+
+export interface IndexingPrepareExcludedItem {
+  url: string
+  reason: string
+  reason_label: string
+  source_file: string
+  issue: string
+}
+
+export interface IndexingPrepareResult {
+  counts: {
+    raw: number
+    submit_ready: number
+    excluded: number
+  }
+  submit_ready_urls: string[]
+  excluded_urls: IndexingPrepareExcludedItem[]
+  submit_counts_by_issue: Record<string, number>
+  excluded_counts_by_reason: Record<string, number>
+  source_files: string[]
+  ignored_files: string[]
+  metadata_issues: string[]
+  generated_files: Record<string, string>
+}

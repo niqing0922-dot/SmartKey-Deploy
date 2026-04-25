@@ -107,6 +107,23 @@ async def test_optional_adapters_fail_gracefully(client):
   assert indexing.json()["error"]["code"] == "configuration_required"
 
 
+async def test_indexing_prepare_builds_submit_ready_urls(client):
+  response = await client.post("/api/indexing/prepare", json={
+    "sources": [
+      {"filename": "Metadata.csv", "content": "Property,Value\nIssue,Crawled - currently not indexed\n"},
+      {"filename": "Table.csv", "content": "URL,Last crawled\nhttps://www.example.com/a,2026-04-01\nhttps://www.example.com/news/tags/router,2026-04-02\nhttps://www.example.com/file.pdf,2026-04-03\nhttps://www.example.com/a,2026-04-04\n"},
+    ],
+  })
+  assert response.status_code == 200
+  payload = response.json()
+  assert payload["status"] == "prepared"
+  assert payload["counts"]["raw"] == 3
+  assert payload["counts"]["submit_ready"] == 1
+  assert payload["counts"]["excluded"] == 3
+  assert payload["submit_ready_urls"] == ["https://www.example.com/a"]
+  assert payload["submit_counts_by_issue"]["Crawled - currently not indexed"] == 1
+
+
 async def test_diagnostics_runtime(client):
   response = await client.get("/api/diagnostics/runtime")
   assert response.status_code == 200

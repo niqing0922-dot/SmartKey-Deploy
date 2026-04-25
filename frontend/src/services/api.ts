@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ApiErrorPayload, ArticleItem, DashboardStats, GeoDraftItem, ImagePlanItem, KeywordItem, ReadinessStatus, RuntimeDiagnostics, SettingsItem } from '@/types'
+import type { ApiErrorPayload, ArticleItem, DashboardStats, GeoDraftItem, ImagePlanItem, IndexingPrepareResult, KeywordItem, ReadinessStatus, RuntimeDiagnostics, SettingsItem } from '@/types'
 
 type ApiEnvelope<T> = {
   status: string
@@ -225,6 +225,10 @@ export const rankApi = {
 export const indexingApi = {
   async jobs() {
     const { data } = await api.get('/indexing/jobs')
+    return data
+  },
+  async prepare(payload: { sources: Array<{ filename: string; content: string }> }) {
+    const { data } = await api.post<ApiEnvelope<IndexingPrepareResult>>('/indexing/prepare', payload)
     return data
   },
   async run(payload: {

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from backend.db import create_indexing_job, get_settings, list_indexing_jobs, list_indexing_pages
 from backend.observability import api_error, api_ok, log_domain_event
+from backend.services.indexing_prepare import prepare_search_console_export
 
 router = APIRouter(prefix="/api/indexing", tags=["indexing"])
 
@@ -28,6 +29,15 @@ class IndexingRunPayload(BaseModel):
     credentials_path: str = ""
     submission_type: str = "URL_UPDATED"
     max_retries: int = 3
+
+
+class IndexingPrepareSource(BaseModel):
+    filename: str
+    content: str
+
+
+class IndexingPreparePayload(BaseModel):
+    sources: list[IndexingPrepareSource] = Field(default_factory=list)
 
 
 def normalize_site_url(value: str) -> str:
@@ -54,6 +64,28 @@ def dedupe_urls(urls: list[str]) -> list[str]:
         seen.add(url)
         output.append(url)
     return output
+
+
+@router.post("/prepare")
+def prepare_indexing_sources(payload: IndexingPreparePayload, request: Request):
+    if not payload.sources:
+        api_error(status_code=400, code="invalid_input", message="Please upload at least one source file.", request=request)
+    try:
+        result = prepare_search_console_export([item.model_dump() for item in payload.sources])
+        log_domain_event(
+            "adapter.indexing.prepare",
+            request=request,
+            meta={
+                "source_count": len(payload.sources),
+                "submit_ready": result["counts"]["submit_ready"],
+                "excluded": result["counts"]["excluded"],
+            },
+        )
+        return api_ok(request, status="prepared", **result)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        api_error(status_code=400, code="invalid_input", message=str(exc), request=request)
 
 
 def run_indexing_runner(payload: dict[str, Any], python_command: str) -> dict[str, Any]:

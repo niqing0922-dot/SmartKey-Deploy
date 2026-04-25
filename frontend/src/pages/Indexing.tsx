@@ -1,8 +1,8 @@
-﻿import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { aiApi, indexingApi, settingsApi } from '@/services/api'
 import { useI18n } from '@/i18n/useI18n'
-import type { SettingsItem } from '@/types'
+import type { IndexingPrepareResult, SettingsItem } from '@/types'
 
 type IndexingRow = {
   url: string
@@ -15,6 +15,11 @@ type IndexingRow = {
   success?: boolean | null
   status_message?: string
   retry_count?: number | null
+}
+
+type UploadedSource = {
+  filename: string
+  content: string
 }
 
 function toCsvCell(value: unknown) {
@@ -61,6 +66,23 @@ function inferSiteUrlFromInput(siteUrl: string, urls: string[]): string {
   }
 }
 
+function readErrorMessage(issue: any, fallback: string) {
+  const detail = issue?.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (detail?.message) return detail.message
+  return issue?.message || fallback
+}
+
+function downloadText(filename: string, content: string, mime = 'text/plain;charset=utf-8;') {
+  const blob = new Blob([content], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
 export function IndexingPage() {
   const navigate = useNavigate()
   const { t } = useI18n()
@@ -81,7 +103,11 @@ export function IndexingPage() {
   const [parseSource, setParseSource] = useState<'none' | 'local' | 'ai'>('none')
   const [showAdvanced, setShowAdvanced] = useState(false)
 
-  const [action, setAction] = useState<'inspect' | 'submit'>('inspect')
+  const [prepareSources, setPrepareSources] = useState<UploadedSource[]>([])
+  const [prepareResult, setPrepareResult] = useState<IndexingPrepareResult | null>(null)
+  const [preparing, setPreparing] = useState(false)
+
+  const [action, setAction] = useState<'inspect' | 'submit'>('submit')
   const [maxPages, setMaxPages] = useState('50')
   const [crawlDelay, setCrawlDelay] = useState('0.5')
   const [checkDelay, setCheckDelay] = useState('0.3')
@@ -152,6 +178,8 @@ export function IndexingPage() {
   }, [filteredPages, pageIndex, pageSize, totalPages])
 
   const lastRunAt = jobs[0]?.finished_at || jobs[0]?.created_at || ''
+  const startButtonLabel = action === 'submit' ? copy.startSubmit : copy.startInspect
+  const runningLabel = action === 'submit' ? copy.runningSubmit : copy.runningInspect
 
   const loadJobs = async (keepSelection = true) => {
     const data = await indexingApi.jobs()
@@ -176,16 +204,12 @@ export function IndexingPage() {
         const settingData = await settingsApi.get()
         if (!cancelled) setSettings(settingData)
       } catch (issue: any) {
-        if (!cancelled) {
-          setError(issue?.response?.data?.detail || issue?.message || copy.settingsLoadFailed)
-        }
+        if (!cancelled) setError(readErrorMessage(issue, copy.settingsLoadFailed))
       }
       try {
         await loadJobs(false)
       } catch (issue: any) {
-        if (!cancelled) {
-          setError(issue?.response?.data?.detail || issue?.message || copy.jobsLoadFailed)
-        }
+        if (!cancelled) setError(readErrorMessage(issue, copy.jobsLoadFailed))
       }
     })()
     return () => {
@@ -204,6 +228,39 @@ export function IndexingPage() {
   useEffect(() => {
     setPageIndex(1)
   }, [query, statusFilter, pageSize, pages])
+
+  const handlePrepareUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
+    const nextSources = await Promise.all(files.map(async (file) => ({ filename: file.name, content: await file.text() })))
+    setPrepareSources(nextSources)
+    setPrepareResult(null)
+    setError('')
+  }
+
+  const prepareFromFiles = async () => {
+    if (!prepareSources.length) {
+      setError(copy.uploadFirst)
+      return
+    }
+    setPreparing(true)
+    setError('')
+    try {
+      const result = await indexingApi.prepare({ sources: prepareSources })
+      setPrepareResult(result)
+    } catch (issue: any) {
+      setError(readErrorMessage(issue, copy.prepareFailed))
+    } finally {
+      setPreparing(false)
+    }
+  }
+
+  const usePreparedUrls = () => {
+    if (!prepareResult?.submit_ready_urls?.length) return
+    setUrlsText(prepareResult.submit_ready_urls.join('\n'))
+    setAction('submit')
+    setParseSource('local')
+  }
 
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -265,13 +322,13 @@ export function IndexingPage() {
       await loadJobs()
       if (result?.job_id) setSelectedJobId(result.job_id)
     } catch (issue: any) {
-      setError(issue?.response?.data?.detail || issue?.message || copy.runFailed)
+      setError(readErrorMessage(issue, copy.runFailed))
     } finally {
       setRunning(false)
     }
   }
 
-  const exportCsv = () => {
+  const exportResultsCsv = () => {
     const headers = copy.table
     const lines = filteredPages.map((item) => {
       const indexed = item.indexed === null || item.indexed === undefined ? copy.unknown : item.indexed ? copy.yes : copy.no
@@ -279,28 +336,35 @@ export function IndexingPage() {
       const checked = item.last_crawl || item.checked_at || ''
       return [toCsvCell(item.url || ''), toCsvCell(indexed), toCsvCell(status), toCsvCell(checked), toCsvCell(item.error || '')].join(',')
     })
-    const csv = [headers.map(toCsvCell).join(','), ...lines].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `indexing-pages-${selectedJobId || 'latest'}.csv`
-    anchor.click()
-    URL.revokeObjectURL(url)
+    downloadText(`indexing-pages-${selectedJobId || 'latest'}.csv`, [headers.map(toCsvCell).join(','), ...lines].join('\n'), 'text/csv;charset=utf-8;')
+  }
+
+  const exportPreparedSubmitReady = () => {
+    if (!prepareResult?.submit_ready_urls?.length) return
+    downloadText('submit-ready-urls.txt', prepareResult.submit_ready_urls.join('\n'))
+  }
+
+  const exportPreparedExcluded = () => {
+    if (!prepareResult?.excluded_urls?.length) return
+    const headers = ['url', 'reason', 'reason_label', 'source_file', 'issue']
+    const rows = prepareResult.excluded_urls.map((item) =>
+      [item.url, item.reason, item.reason_label, item.source_file, item.issue].map(toCsvCell).join(','),
+    )
+    downloadText('excluded-urls.csv', [headers.map(toCsvCell).join(','), ...rows].join('\n'), 'text/csv;charset=utf-8;')
   }
 
   return (
     <div id="page-indexing" className="page page-active">
       <div className="page-header linear-page-header">
         <div>
-          <div className="page-title">Google Indexing</div>
+          <div className="page-title">{copy.title}</div>
           <div className="page-desc">{copy.desc}</div>
         </div>
         <div className="linear-header-meta"><span>{pages.length} {copy.pages}</span></div>
       </div>
 
-      <div className="page-body linear-workbench ai-linear-workbench">
-        <section className="linear-left">
+      <div className="page-body linear-workbench rank-linear-workbench indexing-linear-workbench">
+        <section className="linear-left rank-left-panel indexing-left-panel">
           <div className="settings-status-strip" style={{ position: 'static', paddingTop: 0 }}>
             <span className={hasGoogleCreds ? 'status-chip ready' : 'status-chip warn'}>
               {copy.credentials}: {hasGoogleCreds ? copy.ready : copy.missing}
@@ -322,19 +386,49 @@ export function IndexingPage() {
           ) : null}
 
           <div className="rank-section">
-            <div className="linear-panel-title">{copy.primaryInput}</div>
+            <div className="linear-panel-title">{copy.intakeTitle}</div>
+            <p className="muted-text indexing-section-note">{copy.intakeDesc}</p>
+            <div className="linear-inspector-grid">
+              <div className="field-block">
+                <label>{copy.uploadFiles}</label>
+                <input type="file" accept=".csv" multiple onChange={handlePrepareUpload} />
+                <div className="field-hint">{copy.uploadHint}</div>
+              </div>
+              {prepareSources.length ? (
+                <div className="indexing-file-list">
+                  {prepareSources.map((item) => <span key={item.filename} className="status-chip muted">{item.filename}</span>)}
+                </div>
+              ) : null}
+              <div className="rank-action-row">
+                <button className="btn btn-primary btn-sm" onClick={prepareFromFiles} disabled={!prepareSources.length || preparing}>
+                  {preparing ? copy.preparing : copy.prepare}
+                </button>
+                <button className="btn btn-sm" onClick={usePreparedUrls} disabled={!prepareResult?.submit_ready_urls?.length}>
+                  {copy.useSubmitReady}
+                </button>
+                <button className="btn btn-sm" onClick={() => { setPrepareResult(null); setPrepareSources([]) }} disabled={!prepareResult && !prepareSources.length}>
+                  {copy.clearPrepared}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="rank-section">
+            <div className="linear-panel-title">{copy.workspaceTitle}</div>
+            <p className="muted-text indexing-section-note">{copy.workspaceDesc}</p>
             <div className="linear-inspector-grid">
               <div className="field-block">
                 <label>{copy.siteUrl}</label>
-                <input value={siteUrl} onChange={(event) => setSiteUrl(event.target.value)} placeholder="https://example.com/page" />
+                <input value={siteUrl} onChange={(event) => setSiteUrl(event.target.value)} placeholder="https://www.example.com" />
               </div>
               <div className="field-block">
                 <label>{copy.uploadFile}</label>
                 <input type="file" accept=".txt,.csv,.xml,.html,.md" onChange={handleImportFile} />
               </div>
               <div className="field-block">
-                <label>{copy.parsedUrls}</label>
-                <textarea rows={8} value={urlsText} onChange={(event) => setUrlsText(event.target.value)} placeholder={'https://example.com/a\nhttps://example.com/b'} />
+                <label>{copy.manualUrls}</label>
+                <textarea rows={10} value={urlsText} onChange={(event) => setUrlsText(event.target.value)} placeholder={'https://example.com/a\nhttps://example.com/b'} />
+                <div className="field-hint">{copy.manualHint}</div>
               </div>
               <div className="rank-action-row">
                 <button className="btn btn-sm" onClick={handleAiFallback} disabled={!uploadedText || aiProcessing}>
@@ -359,8 +453,8 @@ export function IndexingPage() {
                 <div className="field-block">
                   <label>{copy.action}</label>
                   <select value={action} onChange={(event) => setAction(event.target.value as 'inspect' | 'submit')}>
-                    <option value="inspect">{copy.actionInspect}</option>
                     <option value="submit">{copy.actionSubmit}</option>
+                    <option value="inspect">{copy.actionInspect}</option>
                   </select>
                 </div>
                 <div className="field-block">
@@ -395,62 +489,161 @@ export function IndexingPage() {
           </div>
 
           <button className="btn btn-primary btn-full" onClick={run} disabled={!canRun}>
-            {running ? copy.running : copy.start}
+            {running ? runningLabel : startButtonLabel}
           </button>
           {error ? <div className="alert alert-error" style={{ marginTop: 10 }}>{error}</div> : null}
           {jobsStatus === 'configuration_required' && jobsMessage ? <div className="alert alert-warn" style={{ marginTop: 10 }}>{jobsMessage}</div> : null}
         </section>
 
-        <section className="linear-main ai-main-panel">
-          <div className="linear-table-tools">
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} />
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | 'indexed' | 'not_indexed' | 'error')}>
-              <option value="all">{copy.all}</option>
-              <option value="indexed">{copy.indexed}</option>
-              <option value="not_indexed">{copy.notIndexed}</option>
-              <option value="error">{copy.error}</option>
-            </select>
-            <button className="btn btn-sm" onClick={exportCsv} disabled={!filteredPages.length}>{copy.exportCsv}</button>
+        <section className="linear-main rank-main-panel indexing-main-panel">
+          <div className="rank-section indexing-summary-card">
+            <div className="linear-panel-title">{copy.intakeTitle}</div>
+            {!prepareResult ? (
+              <div className="empty-state">{copy.noPrepared}</div>
+            ) : (
+              <div className="indexing-prepare-stack">
+                <div className="indexing-metrics-grid">
+                  <div className="indexing-metric"><strong>{prepareResult.counts.raw}</strong><span>{copy.rawUrls}</span></div>
+                  <div className="indexing-metric"><strong>{prepareResult.counts.submit_ready}</strong><span>{copy.submitReady}</span></div>
+                  <div className="indexing-metric"><strong>{prepareResult.counts.excluded}</strong><span>{copy.excluded}</span></div>
+                  <div className="indexing-metric"><strong>{prepareResult.source_files.length}</strong><span>{copy.sourceFiles}</span></div>
+                </div>
+
+                <div className="indexing-summary-grid">
+                  <div className="indexing-summary-panel">
+                    <div className="wizard-title">{copy.issueBreakdown}</div>
+                    {Object.keys(prepareResult.submit_counts_by_issue).length ? (
+                      Object.entries(prepareResult.submit_counts_by_issue).map(([label, count]) => (
+                        <div key={label} className="list-row indexing-summary-row"><span>{label}</span><strong>{count}</strong></div>
+                      ))
+                    ) : <span className="muted-text">-</span>}
+                  </div>
+                  <div className="indexing-summary-panel">
+                    <div className="wizard-title">{copy.excludedBreakdown}</div>
+                    {Object.keys(prepareResult.excluded_counts_by_reason).length ? (
+                      Object.entries(prepareResult.excluded_counts_by_reason).map(([label, count]) => (
+                        <div key={label} className="list-row indexing-summary-row"><span>{label}</span><strong>{count}</strong></div>
+                      ))
+                    ) : <span className="muted-text">-</span>}
+                  </div>
+                </div>
+
+                <div className="indexing-preview-grid">
+                  <div className="indexing-preview-card">
+                    <div className="indexing-preview-head">
+                      <div>
+                        <div className="wizard-title">{copy.submitReady}</div>
+                        <div className="muted-text">{prepareResult.submit_ready_urls.length} URLs</div>
+                      </div>
+                      <button className="btn btn-sm" onClick={exportPreparedSubmitReady}>{copy.exportSubmitReady}</button>
+                    </div>
+                    <div className="indexing-preview-list">
+                      {prepareResult.submit_ready_urls.slice(0, 12).map((item) => <div key={item} className="indexing-preview-item" title={item}>{item}</div>)}
+                    </div>
+                  </div>
+
+                  <div className="indexing-preview-card">
+                    <div className="indexing-preview-head">
+                      <div>
+                        <div className="wizard-title">{copy.excluded}</div>
+                        <div className="muted-text">{prepareResult.excluded_urls.length} URLs</div>
+                      </div>
+                      <button className="btn btn-sm" onClick={exportPreparedExcluded}>{copy.exportExcluded}</button>
+                    </div>
+                    <div className="indexing-preview-list">
+                      {prepareResult.excluded_urls.slice(0, 12).map((item) => (
+                        <div key={`${item.url}-${item.reason}`} className="indexing-preview-item">
+                          <strong>{item.reason_label}</strong>
+                          <span title={item.url}>{item.url}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="linear-table-wrap">
-            <table className="tbl linear-table table-comfort">
-              <thead>
-                <tr>
-                  {copy.table.map((header) => <th key={header}>{header}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {!pagedPages.length ? (
-                  <tr><td colSpan={5}><div className="empty">{copy.empty}</div></td></tr>
-                ) : pagedPages.map((item, index) => (
-                  <tr key={`${item.url}-${index}`}>
-                    <td title={item.url}>{item.url}</td>
-                    <td>{item.indexed === null || item.indexed === undefined ? copy.unknown : item.indexed ? copy.yes : copy.no}</td>
-                    <td>{item.coverage || item.indexing_state || item.status_message || '-'}</td>
-                    <td>{item.last_crawl || (item.checked_at ? new Date(item.checked_at).toLocaleString() : '-')}</td>
-                    <td>{item.error || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="linear-table-footer">
-            <span>{filteredPages.length} {copy.rows}</span>
-            <div className="linear-pager">
-              <select value={pageSize} onChange={(event) => setPageSize(event.target.value)}>
-                <option value="10">10 {copy.pageSize}</option>
-                <option value="20">20 {copy.pageSize}</option>
-                <option value="50">50 {copy.pageSize}</option>
+
+          <div className="rank-section indexing-results-card">
+            <div className="indexing-results-head">
+              <div>
+                <div className="linear-panel-title">{copy.resultsTitle}</div>
+                <div className="muted-text">{copy.resultsDesc}</div>
+              </div>
+              <button className="btn btn-sm" onClick={exportResultsCsv} disabled={!filteredPages.length}>{copy.exportCsv}</button>
+            </div>
+
+            <div className="linear-table-tools">
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} />
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | 'indexed' | 'not_indexed' | 'error')}>
+                <option value="all">{copy.all}</option>
+                <option value="indexed">{copy.indexed}</option>
+                <option value="not_indexed">{copy.notIndexed}</option>
+                <option value="error">{copy.error}</option>
               </select>
-              <button className="btn btn-xs" onClick={() => setPageIndex((p) => Math.max(1, p - 1))} disabled={pageIndex <= 1}>{copy.prev}</button>
-              <span>{pageIndex} / {totalPages}</span>
-              <button className="btn btn-xs" onClick={() => setPageIndex((p) => Math.min(totalPages, p + 1))} disabled={pageIndex >= totalPages}>{copy.next}</button>
+            </div>
+
+            <div className="linear-table-wrap">
+              <table className="tbl linear-table table-comfort">
+                <thead>
+                  <tr>
+                    {copy.table.map((header) => <th key={header}>{header}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {!pagedPages.length ? (
+                    <tr><td colSpan={5}><div className="empty">{copy.empty}</div></td></tr>
+                  ) : pagedPages.map((item, index) => (
+                    <tr key={`${item.url}-${index}`}>
+                      <td title={item.url}>{item.url}</td>
+                      <td>{item.indexed === null || item.indexed === undefined ? copy.unknown : item.indexed ? copy.yes : copy.no}</td>
+                      <td>{item.coverage || item.indexing_state || item.status_message || '-'}</td>
+                      <td>{item.last_crawl || (item.checked_at ? new Date(item.checked_at).toLocaleString() : '-')}</td>
+                      <td>{item.error || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="linear-table-footer">
+              <span>{filteredPages.length} {copy.rows}</span>
+              <div className="linear-pager">
+                <select value={pageSize} onChange={(event) => setPageSize(event.target.value)}>
+                  <option value="10">10 {copy.pageSize}</option>
+                  <option value="20">20 {copy.pageSize}</option>
+                  <option value="50">50 {copy.pageSize}</option>
+                </select>
+                <button className="btn btn-xs" onClick={() => setPageIndex((p) => Math.max(1, p - 1))} disabled={pageIndex <= 1}>{copy.prev}</button>
+                <span>{pageIndex} / {totalPages}</span>
+                <button className="btn btn-xs" onClick={() => setPageIndex((p) => Math.min(totalPages, p + 1))} disabled={pageIndex >= totalPages}>{copy.next}</button>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="linear-right">
+        <section className="linear-right indexing-right-panel">
           <div className="linear-panel-title">{copy.history}</div>
+          <div className="muted-text indexing-section-note">{copy.historyDesc}</div>
+
+          {prepareResult ? (
+            <div className="rank-stepper indexing-side-panel">
+              <div className="wizard-title">{copy.generatedFiles}</div>
+              {Object.entries(prepareResult.generated_files).map(([key, value]) => (
+                <div key={key} className="list-row indexing-side-row">
+                  <span>{key}</span>
+                  <span className="muted-text" title={value}>{value.split(/[\\/]/).pop()}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {prepareResult?.ignored_files?.length ? (
+            <div className="rank-stepper indexing-side-panel">
+              <div className="wizard-title">{copy.ignoredFiles}</div>
+              {prepareResult.ignored_files.map((item) => <div key={item} className="muted-text indexing-side-row">{item}</div>)}
+            </div>
+          ) : null}
+
           <div className="geo-history-list">
             {!jobs.length ? <span className="muted-text">{copy.noJobs}</span> : jobs.map((job) => (
               <button key={job.id} className={`draft-item geo-history-item ${selectedJobId === job.id ? 'active' : ''}`} onClick={() => setSelectedJobId(job.id)}>
