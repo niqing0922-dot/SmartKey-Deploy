@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ApiErrorPayload, ArticleItem, DashboardStats, GeoDraftItem, ImagePlanItem, IndexingPrepareResult, KeywordItem, ReadinessStatus, RuntimeDiagnostics, SettingsItem } from '@/types'
+import type { ApiErrorPayload, ArticleItem, DashboardStats, GeoDraftItem, ImagePlanItem, IndexingPrepareResult, KeywordItem, RankJobItem, RankResultItem, RankTemplatePreview, ReadinessStatus, RuntimeDiagnostics, SettingsItem, WorkspaceContext, WorkbenchDispatchRequest, WorkbenchDispatchResponse, WorkbenchExecuteRequest, WorkbenchExecuteResponse } from '@/types'
 
 type ApiEnvelope<T> = {
   status: string
@@ -199,26 +199,34 @@ export const localDataApi = {
 
 export const rankApi = {
   async jobs() {
-    const { data } = await api.get('/rank/jobs')
+    const { data } = await api.get<ApiEnvelope<{ items: RankJobItem[]; message?: string }>>('/rank/jobs')
+    return data
+  },
+  async previewTemplate(payload: { file: { filename: string; content_base64: string } }) {
+    const { data } = await api.post<ApiEnvelope<{ preview: RankTemplatePreview }>>('/rank/template/preview', payload)
     return data
   },
   async run(payload: {
-    keywords: string[]
+    mode: 'batch_template_run' | 'single_keyword_check'
+    template_file?: { filename: string; content_base64: string }
+    keywords?: string[]
     domain?: string
     provider?: string
     max_pages?: number
     results_per_request?: number
     hl?: string
     gl?: string
-    reserve_credits?: number
     source?: string
   }) {
     const { data } = await api.post('/rank/jobs/run', payload)
     return data
   },
   async results(jobId: string) {
-    const { data } = await api.get(`/rank/jobs/${jobId}/results`)
+    const { data } = await api.get<ApiEnvelope<{ item: RankJobItem; items: RankResultItem[] }>>(`/rank/jobs/${jobId}/results`)
     return data
+  },
+  artifactUrl(jobId: string, kind: 'xlsx' | 'csv') {
+    return `/api/rank/jobs/${jobId}/artifacts/${kind}`
   },
 }
 
@@ -260,6 +268,23 @@ export const diagnosticsApi = {
   async runtime() {
     const { data } = await api.get<ApiEnvelope<{ runtime: RuntimeDiagnostics }>>('/diagnostics/runtime')
     return data.runtime
+  },
+}
+
+export const workbenchApi = {
+  async context(params: { current_route: string; language: string }) {
+    const { data } = await api.get<ApiEnvelope<WorkspaceContext>>('/workbench/context', {
+      params: { current_route: params.current_route, language: params.language },
+    })
+    return data.context_summary
+  },
+  async dispatch(payload: WorkbenchDispatchRequest) {
+    const { data } = await api.post<ApiEnvelope<WorkbenchDispatchResponse>>('/workbench/dispatch', payload)
+    return data
+  },
+  async execute(payload: WorkbenchExecuteRequest) {
+    const { data } = await api.post<ApiEnvelope<WorkbenchExecuteResponse>>('/workbench/execute', payload)
+    return data
   },
 }
 

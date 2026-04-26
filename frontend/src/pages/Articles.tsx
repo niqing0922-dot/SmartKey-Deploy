@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { articlesApi, keywordsApi } from '@/services/api'
 import { useI18n } from '@/i18n/useI18n'
+import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
 import type { ArticleItem, ArticleStatus, KeywordItem } from '@/types'
 
 const emptyForm: { title: string; content: string; status: ArticleStatus; keyword_ids: string[] } = {
@@ -34,7 +35,20 @@ export function ArticlesPage() {
     setKeywords(keywordList)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
+
+  useEffect(() => {
+    const draft = consumeWorkbenchTaskDraft('articles')
+    if (!draft?.prefill) return
+    const nextTitle = typeof draft.prefill.title === 'string' ? draft.prefill.title : ''
+    const nextSearch = typeof draft.prefill.search === 'string' ? draft.prefill.search : nextTitle
+    const nextStatus = typeof draft.prefill.status === 'string' ? draft.prefill.status : ''
+    if (nextTitle) setQuickTitle(nextTitle)
+    if (nextSearch) setSearch(nextSearch)
+    if (nextStatus === 'draft' || nextStatus === 'published') setStatus(nextStatus)
+  }, [])
 
   const keywordMap = useMemo(() => new Map(keywords.map((item) => [item.id, item.keyword])), [keywords])
 
@@ -190,7 +204,9 @@ export function ArticlesPage() {
               }}
               placeholder={copy.articleTitle}
             />
-            <button className="btn btn-primary btn-sm" data-testid="articles.create-button" onClick={onCreate} disabled={creating}>{copy.manual}</button>
+            <button className="btn btn-primary btn-sm" data-testid="articles.create-button" onClick={onCreate} disabled={creating}>
+              {copy.manual}
+            </button>
           </div>
 
           <div className="linear-panel-title">{language === 'zh' ? '筛选' : 'Filters'}</div>
@@ -203,7 +219,7 @@ export function ArticlesPage() {
             </select>
           </div>
 
-          <div className="linear-panel-title">{language === 'zh' ? '状态概览' : 'Overview'}</div>
+          <div className="linear-panel-title">{language === 'zh' ? '概览' : 'Overview'}</div>
           <div className="linear-metric-list">
             <div><span>{language === 'zh' ? '总计' : 'Total'}</span><strong>{metrics.total}</strong></div>
             <div><span>{common.draft}</span><strong>{metrics.draft}</strong></div>

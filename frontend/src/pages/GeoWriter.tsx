@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { geoWriterApi, keywordsApi, settingsApi } from '@/services/api'
 import { useI18n } from '@/i18n/useI18n'
+import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
 import type { ContentLanguage, GeoDraftItem, KeywordItem, SettingsItem } from '@/types'
 
 const contentLanguageOptions: Array<{ value: ContentLanguage; label: string }> = [
-  { value: 'zh', label: 'ZH · 中文' },
-  { value: 'en', label: 'EN · English' },
-  { value: 'de', label: 'DE · Deutsch' },
-  { value: 'es', label: 'ES · Español' },
-  { value: 'fr', label: 'FR · Français' },
+  { value: 'zh', label: 'ZH - 中文' },
+  { value: 'en', label: 'EN - English' },
+  { value: 'de', label: 'DE - Deutsch' },
+  { value: 'es', label: 'ES - Espanol' },
+  { value: 'fr', label: 'FR - Francais' },
 ]
 
 const defaultContentBlocks = ['table_of_contents', 'introduction', 'technical_sections', 'use_cases', 'faq']
@@ -63,6 +64,7 @@ export function GeoWriterPage() {
   const { t, language } = useI18n()
   const copy = t.geoWriter
   const common = t.common
+
   const [drafts, setDrafts] = useState<GeoDraftItem[]>([])
   const [selected, setSelected] = useState<GeoDraftItem | null>(null)
   const [settings, setSettings] = useState<SettingsItem | null>(null)
@@ -94,12 +96,19 @@ export function GeoWriterPage() {
 
   const load = async () => {
     try {
-      const [draftList, nextSettings, keywordList] = await Promise.all([geoWriterApi.list(), settingsApi.get(), keywordsApi.list()])
+      const [draftList, nextSettings, keywordList] = await Promise.all([
+        geoWriterApi.list(),
+        settingsApi.get(),
+        keywordsApi.list(),
+      ])
       setDrafts(draftList)
       setSelected(draftList[0] || null)
       setSettings(nextSettings)
       setKeywords(keywordList)
-      setForm((current) => ({ ...current, content_language: nextSettings.default_content_language || current.content_language }))
+      setForm((current) => ({
+        ...current,
+        content_language: nextSettings.default_content_language || current.content_language,
+      }))
     } catch (issue: any) {
       const detail = issue?.response?.data?.detail
       setError(detail?.message || issue.message || copy.loadFailed)
@@ -110,6 +119,45 @@ export function GeoWriterPage() {
 
   useEffect(() => {
     load()
+  }, [])
+
+  useEffect(() => {
+    const draft = consumeWorkbenchTaskDraft('articles.geo-writer')
+    if (draft?.prefill) {
+      const title = typeof draft.prefill.title === 'string' ? draft.prefill.title : ''
+      const primaryKeyword = typeof draft.prefill.primary_keyword === 'string' ? draft.prefill.primary_keyword : title
+      setForm((current) => ({
+        ...current,
+        title: title || current.title,
+        primary_keyword: primaryKeyword || current.primary_keyword,
+        secondary_keywords: typeof draft.prefill.secondary_keywords === 'string'
+          ? draft.prefill.secondary_keywords
+          : (primaryKeyword || current.secondary_keywords),
+        industry: typeof draft.prefill.industry === 'string' ? draft.prefill.industry : current.industry,
+        article_type: typeof draft.prefill.article_type === 'string' ? draft.prefill.article_type : current.article_type,
+        target_length: typeof draft.prefill.target_length === 'number' ? draft.prefill.target_length : current.target_length,
+        content_language: typeof draft.prefill.content_language === 'string'
+          ? draft.prefill.content_language as ContentLanguage
+          : current.content_language,
+      }))
+      return
+    }
+
+    const raw = window.localStorage.getItem('smartkey.global.geo')
+    if (!raw) return
+    try {
+      const legacy = JSON.parse(raw)
+      const title = typeof legacy.title === 'string' ? legacy.title : ''
+      const primaryKeyword = typeof legacy.primary_keyword === 'string' ? legacy.primary_keyword : title
+      setForm((current) => ({
+        ...current,
+        title: title || current.title,
+        primary_keyword: primaryKeyword || current.primary_keyword,
+        secondary_keywords: primaryKeyword || current.secondary_keywords,
+      }))
+    } finally {
+      window.localStorage.removeItem('smartkey.global.geo')
+    }
   }, [])
 
   const generate = async () => {
@@ -165,7 +213,9 @@ export function GeoWriterPage() {
     setError('')
     setMessage('')
     try {
-      const blob = format === 'md' ? await geoWriterApi.exportMarkdown(selected.id) : await geoWriterApi.exportWord(selected.id)
+      const blob = format === 'md'
+        ? await geoWriterApi.exportMarkdown(selected.id)
+        : await geoWriterApi.exportWord(selected.id)
       const extension = format === 'md' ? 'md' : 'docx'
       downloadBlob(blob, `${selected.title}.${extension}`)
       setMessage(format === 'md' ? copy.markdownExported : copy.wordExported)
@@ -231,7 +281,7 @@ export function GeoWriterPage() {
           <div className="page-desc">{copy.desc}</div>
         </div>
         <div className="linear-header-meta">
-          <span>{language === 'zh' ? '三栏创作流' : 'Three-panel writing flow'}</span>
+          <span>{language === 'zh' ? '三栏写作流' : 'Three-panel writing flow'}</span>
           <span>J / K</span>
         </div>
       </div>
@@ -244,24 +294,92 @@ export function GeoWriterPage() {
           <section className="linear-left geo-left-panel">
             <div className="linear-panel-title">{copy.settingsTitle}</div>
             <div className="linear-inspector-grid">
-              <div className="field-block"><label>{copy.articleTitle}</label><input data-testid="geo.title-input" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder={copy.articleTitlePlaceholder} /></div>
-              <div className="field-block"><label>{copy.keywords}</label><textarea rows={4} value={form.secondary_keywords} onChange={(event) => setForm({ ...form, secondary_keywords: event.target.value })} placeholder={copy.keywordsPlaceholder}></textarea></div>
-              <div className="field-block"><label>{copy.industry}</label><input value={form.industry} onChange={(event) => setForm({ ...form, industry: event.target.value })} placeholder={copy.industryPlaceholder} /></div>
-              <div className="field-block"><label>{copy.articleType}</label><select value={form.article_type} onChange={(event) => setForm({ ...form, article_type: event.target.value })}>{articleTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
-              <div className="field-block"><label>{copy.targetLength}</label><select value={String(form.target_length)} onChange={(event) => setForm({ ...form, target_length: Number(event.target.value) })}>{targetLengthOptions.map((option) => <option key={option} value={option}>~{option}</option>)}</select></div>
-              <div className="field-block"><label>{copy.contentLanguage}</label><select value={form.content_language} onChange={(event) => setForm({ ...form, content_language: event.target.value as ContentLanguage })}>{contentLanguageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+              <div className="field-block">
+                <label>{copy.articleTitle}</label>
+                <input
+                  data-testid="geo.title-input"
+                  value={form.title}
+                  onChange={(event) => setForm({ ...form, title: event.target.value })}
+                  placeholder={copy.articleTitlePlaceholder}
+                />
+              </div>
+              <div className="field-block">
+                <label>{copy.keywords}</label>
+                <textarea
+                  rows={4}
+                  value={form.secondary_keywords}
+                  onChange={(event) => setForm({ ...form, secondary_keywords: event.target.value })}
+                  placeholder={copy.keywordsPlaceholder}
+                />
+              </div>
+              <div className="field-block">
+                <label>{copy.industry}</label>
+                <input
+                  value={form.industry}
+                  onChange={(event) => setForm({ ...form, industry: event.target.value })}
+                  placeholder={copy.industryPlaceholder}
+                />
+              </div>
+              <div className="field-block">
+                <label>{copy.articleType}</label>
+                <select value={form.article_type} onChange={(event) => setForm({ ...form, article_type: event.target.value })}>
+                  {articleTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="field-block">
+                <label>{copy.targetLength}</label>
+                <select value={String(form.target_length)} onChange={(event) => setForm({ ...form, target_length: Number(event.target.value) })}>
+                  {targetLengthOptions.map((option) => (
+                    <option key={option} value={option}>~{option}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="field-block">
+                <label>{copy.contentLanguage}</label>
+                <select value={form.content_language} onChange={(event) => setForm({ ...form, content_language: event.target.value as ContentLanguage })}>
+                  {contentLanguageOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
               <div className="field-block">
                 <label>{copy.contentBlocks}</label>
-                <div className="aw-section-picker">{contentBlockOptions.map((option) => <span key={option.value} className={`chip ${form.content_blocks.includes(option.value) ? 'sel' : ''}`} onClick={() => toggleContentBlock(option.value)}>{option.label}</span>)}</div>
+                <div className="aw-section-picker">
+                  {contentBlockOptions.map((option) => (
+                    <span
+                      key={option.value}
+                      className={`chip ${form.content_blocks.includes(option.value) ? 'sel' : ''}`}
+                      onClick={() => toggleContentBlock(option.value)}
+                    >
+                      {option.label}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div className="field-block">
                 <label>{copy.pickFromLibrary}</label>
                 <div className="aw-kw-chips">
-                  {!keywords.length ? <span className="muted-text">{copy.emptyKeywordLibrary}</span> : keywords.slice(0, 40).map((item) => <span key={item.id} className="chip" onClick={() => addKeywordChip(item.keyword)}>{item.keyword}</span>)}
+                  {!keywords.length ? (
+                    <span className="muted-text">{copy.emptyKeywordLibrary}</span>
+                  ) : keywords.slice(0, 40).map((item) => (
+                    <span key={item.id} className="chip" onClick={() => addKeywordChip(item.keyword)}>
+                      {item.keyword}
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>
-            <button id="btn-aw" data-testid="geo.generate-button" className="btn btn-primary btn-full" onClick={generate} disabled={loading}>{loading ? common.generating : copy.generate}</button>
+            <button
+              id="btn-aw"
+              data-testid="geo.generate-button"
+              className="btn btn-primary btn-full"
+              onClick={generate}
+              disabled={loading}
+            >
+              {loading ? common.generating : copy.generate}
+            </button>
           </section>
 
           <section className="linear-main geo-main-panel">
@@ -272,12 +390,22 @@ export function GeoWriterPage() {
             ) : (
               <>
                 <div className="aiwrite-output-meta">
-                  <div className="muted-text">{selected.provider} · {selected.target_length} · {getDraftLanguage(selected) || form.content_language.toUpperCase()}</div>
+                  <div className="muted-text">
+                    {selected.provider} · {selected.target_length} · {getDraftLanguage(selected) || form.content_language.toUpperCase()}
+                  </div>
                   <div className="btn-group">
-                    <button className="btn btn-sm" onClick={() => navigator.clipboard.writeText(JSON.stringify(selected, null, 2))}>{common.copyFull}</button>
-                    <button className="btn btn-sm" onClick={() => exportDraft('md')} disabled={exporting === 'md'}>{exporting === 'md' ? common.exportMdBusy : common.exportMd}</button>
-                    <button className="btn btn-sm" onClick={() => exportDraft('docx')} disabled={exporting === 'docx'}>{exporting === 'docx' ? common.exportMdBusy : common.exportWord}</button>
-                    <button className="btn btn-sm btn-success" data-testid="geo.save-button" onClick={saveDraft}>{common.saveToArticles}</button>
+                    <button className="btn btn-sm" onClick={() => navigator.clipboard.writeText(JSON.stringify(selected, null, 2))}>
+                      {common.copyFull}
+                    </button>
+                    <button className="btn btn-sm" onClick={() => exportDraft('md')} disabled={exporting === 'md'}>
+                      {exporting === 'md' ? common.exportMdBusy : common.exportMd}
+                    </button>
+                    <button className="btn btn-sm" onClick={() => exportDraft('docx')} disabled={exporting === 'docx'}>
+                      {exporting === 'docx' ? common.exportMdBusy : common.exportWord}
+                    </button>
+                    <button className="btn btn-sm btn-success" data-testid="geo.save-button" onClick={saveDraft}>
+                      {common.saveToArticles}
+                    </button>
                   </div>
                 </div>
 
@@ -287,16 +415,47 @@ export function GeoWriterPage() {
                       <div className="aw-post-meta muted-text">{common.adminMeta}</div>
                       <h1>{selected.title}</h1>
                     </div>
-                    {tableOfContents.length ? <div className="aw-section aw-toc-section"><h3>{copy.toc}</h3><ol>{tableOfContents.map((section: any, index: number) => <li key={index}>{typeof section === 'string' ? section : section.heading || JSON.stringify(section)}</li>)}</ol></div> : null}
-                    <div className="aw-section"><h3>{copy.metaDescription}</h3><p>{selected.meta_description || '-'}</p></div>
-                    <div className="aw-section"><h3>{copy.metaTitle}</h3><p>{selected.meta_title || '-'}</p></div>
+                    {tableOfContents.length ? (
+                      <div className="aw-section aw-toc-section">
+                        <h3>{copy.toc}</h3>
+                        <ol>
+                          {tableOfContents.map((section: any, index: number) => (
+                            <li key={index}>
+                              {typeof section === 'string' ? section : section.heading || JSON.stringify(section)}
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    ) : null}
+                    <div className="aw-section">
+                      <h3>{copy.metaDescription}</h3>
+                      <p>{selected.meta_description || '-'}</p>
+                    </div>
+                    <div className="aw-section">
+                      <h3>{copy.metaTitle}</h3>
+                      <p>{selected.meta_title || '-'}</p>
+                    </div>
                     <div className="aw-section">
                       <h3>{copy.draftSections}</h3>
-                      {draftSections.length ? draftSections.map((section: any, index: number) => <div key={`${section.heading || 'section'}-${index}`} className="aw-draft-section"><h4>{section.heading || `${copy.sectionFallback} ${index + 1}`}</h4><p>{section.content || ''}</p></div>) : <div className="aw-draft-section"><p>-</p></div>}
+                      {draftSections.length ? draftSections.map((section: any, index: number) => (
+                        <div key={`${section.heading || 'section'}-${index}`} className="aw-draft-section">
+                          <h4>{section.heading || `${copy.sectionFallback} ${index + 1}`}</h4>
+                          <p>{section.content || ''}</p>
+                        </div>
+                      )) : (
+                        <div className="aw-draft-section"><p>-</p></div>
+                      )}
                     </div>
                     <div className="aw-section">
                       <h3>{copy.faq}</h3>
-                      {faqItems.length ? faqItems.map((item: any, index: number) => <div key={index} className="aw-draft-section"><strong>{item.question || `${copy.faqFallback} ${index + 1}`}</strong><p>{item.answer || ''}</p></div>) : <div className="aw-draft-section"><p>-</p></div>}
+                      {faqItems.length ? faqItems.map((item: any, index: number) => (
+                        <div key={index} className="aw-draft-section">
+                          <strong>{item.question || `${copy.faqFallback} ${index + 1}`}</strong>
+                          <p>{item.answer || ''}</p>
+                        </div>
+                      )) : (
+                        <div className="aw-draft-section"><p>-</p></div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -307,8 +466,14 @@ export function GeoWriterPage() {
           <section className="linear-right geo-right-panel">
             <div className="linear-panel-title">{copy.history}</div>
             <div className="geo-history-list">
-              {!drafts.length ? <span className="muted-text">{copy.noHistory}</span> : drafts.map((draft) => (
-                <button key={draft.id} className={`draft-item geo-history-item ${selected?.id === draft.id ? 'active' : ''}`} onClick={() => setSelected(draft)}>
+              {!drafts.length ? (
+                <span className="muted-text">{copy.noHistory}</span>
+              ) : drafts.map((draft) => (
+                <button
+                  key={draft.id}
+                  className={`draft-item geo-history-item ${selected?.id === draft.id ? 'active' : ''}`}
+                  onClick={() => setSelected(draft)}
+                >
                   <strong className="geo-history-title" title={draft.title}>{draft.title}</strong>
                   <span className="muted-text">{draft.provider} · {new Date(draft.created_at).toLocaleString()}</span>
                 </button>

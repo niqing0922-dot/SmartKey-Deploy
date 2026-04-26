@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { aiApi, indexingApi, settingsApi } from '@/services/api'
 import { useI18n } from '@/i18n/useI18n'
+import { Alert, EmptyState } from '@/components/ui/States'
+import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
 import type { IndexingPrepareResult, SettingsItem } from '@/types'
 
 type IndexingRow = {
@@ -85,7 +87,7 @@ function downloadText(filename: string, content: string, mime = 'text/plain;char
 
 export function IndexingPage() {
   const navigate = useNavigate()
-  const { t } = useI18n()
+  const { t, language } = useI18n()
   const copy = t.indexing
 
   const [settings, setSettings] = useState<SettingsItem | null>(null)
@@ -214,6 +216,44 @@ export function IndexingPage() {
     })()
     return () => {
       cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const draft = consumeWorkbenchTaskDraft('indexing')
+    if (draft?.prefill) {
+      const draftUrls = Array.isArray(draft.prefill.urls) ? draft.prefill.urls.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())) : []
+      if (draftUrls.length) {
+        setUrlsText(draftUrls.join('\n'))
+        try {
+          const first = new URL(draftUrls[0])
+          setSiteUrl(`${first.protocol}//${first.host}`)
+        } catch {
+          setSiteUrl('')
+        }
+      }
+      if (draft.prefill.action === 'inspect' || draft.prefill.action === 'submit') setAction(draft.prefill.action)
+      setParseSource('local')
+      return
+    }
+    const raw = window.localStorage.getItem('smartkey.global.indexing')
+    if (!raw) return
+    try {
+      const legacy = JSON.parse(raw)
+      const draftUrls = Array.isArray(legacy.urls) ? legacy.urls.filter((item: unknown) => typeof item === 'string' && item.trim()) : []
+      if (draftUrls.length) {
+        setUrlsText(draftUrls.join('\n'))
+        try {
+          const first = new URL(draftUrls[0])
+          setSiteUrl(`${first.protocol}//${first.host}`)
+        } catch {
+          setSiteUrl('')
+        }
+      }
+      if (legacy.action === 'inspect' || legacy.action === 'submit') setAction(legacy.action)
+      setParseSource('local')
+    } finally {
+      window.localStorage.removeItem('smartkey.global.indexing')
     }
   }, [])
 
@@ -360,7 +400,10 @@ export function IndexingPage() {
           <div className="page-title">{copy.title}</div>
           <div className="page-desc">{copy.desc}</div>
         </div>
-        <div className="linear-header-meta"><span>{pages.length} {copy.pages}</span></div>
+        <div className="linear-header-meta">
+          <span>{pages.length} {copy.pages}</span>
+          <span>{action === 'submit' ? copy.actionSubmit : copy.actionInspect}</span>
+        </div>
       </div>
 
       <div className="page-body linear-workbench rank-linear-workbench indexing-linear-workbench">
@@ -377,12 +420,12 @@ export function IndexingPage() {
           </div>
 
           {!isReady ? (
-            <div className="alert alert-warn">
+            <Alert tone="warn">
               <div>{jobsMessage || copy.setupRequired}</div>
               <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => navigate('/settings')}>
                 {copy.openSettings}
               </button>
-            </div>
+            </Alert>
           ) : null}
 
           <div className="rank-section">
@@ -491,15 +534,15 @@ export function IndexingPage() {
           <button className="btn btn-primary btn-full" onClick={run} disabled={!canRun}>
             {running ? runningLabel : startButtonLabel}
           </button>
-          {error ? <div className="alert alert-error" style={{ marginTop: 10 }}>{error}</div> : null}
-          {jobsStatus === 'configuration_required' && jobsMessage ? <div className="alert alert-warn" style={{ marginTop: 10 }}>{jobsMessage}</div> : null}
+          {error ? <Alert tone="error">{error}</Alert> : null}
+          {jobsStatus === 'configuration_required' && jobsMessage ? <Alert tone="warn">{jobsMessage}</Alert> : null}
         </section>
 
         <section className="linear-main rank-main-panel indexing-main-panel">
           <div className="rank-section indexing-summary-card">
             <div className="linear-panel-title">{copy.intakeTitle}</div>
             {!prepareResult ? (
-              <div className="empty-state">{copy.noPrepared}</div>
+              <EmptyState title={copy.intakeTitle} description={copy.noPrepared} />
             ) : (
               <div className="indexing-prepare-stack">
                 <div className="indexing-metrics-grid">
@@ -592,7 +635,7 @@ export function IndexingPage() {
                 </thead>
                 <tbody>
                   {!pagedPages.length ? (
-                    <tr><td colSpan={5}><div className="empty">{copy.empty}</div></td></tr>
+                    <tr><td colSpan={5}><EmptyState title={copy.resultsTitle} description={copy.empty} /></td></tr>
                   ) : pagedPages.map((item, index) => (
                     <tr key={`${item.url}-${index}`}>
                       <td title={item.url}>{item.url}</td>
@@ -622,6 +665,19 @@ export function IndexingPage() {
         </section>
 
         <section className="linear-right indexing-right-panel">
+          <div className="rank-stepper indexing-side-panel">
+            <div className="wizard-title">{copy.workspaceTitle}</div>
+            <div className="ai-home-principles">
+              <div className="ai-home-principle">
+                <strong>{language === 'zh' ? '先预处理，再提交' : 'Prepare first, submit second'}</strong>
+                <span>{language === 'zh' ? '先把 Search Console 导出的 CSV 清洗成 submit-ready URL，再进入提交步骤。' : 'Clean the Search Console exports into submit-ready URLs before moving into the submission step.'}</span>
+              </div>
+              <div className="ai-home-principle">
+                <strong>{language === 'zh' ? '把它当成可选模块' : 'Treat this as optional'}</strong>
+                <span>{language === 'zh' ? '没有 Google 凭证时，这个模块应优雅降级，不影响关键词和文章工作流。' : 'Without Google credentials, this module should degrade gracefully and never block keyword or article workflows.'}</span>
+              </div>
+            </div>
+          </div>
           <div className="linear-panel-title">{copy.history}</div>
           <div className="muted-text indexing-section-note">{copy.historyDesc}</div>
 

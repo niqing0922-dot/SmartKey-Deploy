@@ -1,8 +1,9 @@
-﻿import { useEffect, useMemo, useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { articlesApi, keywordsApi } from '@/services/api'
 import { setUiLanguage, useUiLanguage } from '@/hooks/useUiLanguage'
 import { messages } from '@/i18n/messages'
+import { recordRecentRoute } from '@/lib/workbenchDrafts'
 
 type NavBadgeKey = 'keywords' | 'articles' | 'rank'
 type NavGroup = {
@@ -25,8 +26,12 @@ function AppLogo() {
   )
 }
 
-function DashboardIcon() {
+function GridIcon() {
   return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+}
+
+function SparkIcon() {
+  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z" /><path d="M5 15l.9 2.1L8 18l-2.1.9L5 21l-.9-2.1L2 18l2.1-.9L5 15Z" /></svg>
 }
 
 function MatrixIcon() {
@@ -47,10 +52,6 @@ function WriterIcon() {
 
 function ImageIcon() {
   return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8.5" cy="10" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
-}
-
-function ChatIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
 }
 
 function RankIcon() {
@@ -82,18 +83,20 @@ function IndexingIcon() {
 }
 
 function navTestId(path: string) {
-  const key = path === '/' ? 'dashboard' : path.replace(/^\//, '').replace(/[\/]+/g, '.')
+  const key = path === '/' ? 'ai-home' : path.replace(/^\//, '').replace(/[\/]+/g, '.')
   return `nav.${key}`
 }
 
 export function AppShell() {
   const navigate = useNavigate()
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    return window.localStorage.getItem('smartkey.theme') === 'dark' ? 'dark' : 'light'
-  })
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const location = useLocation()
   const language = useUiLanguage()
   const copy = messages[language].shell
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const stored = window.localStorage.getItem('smartkey.theme')
+    return stored === 'dark' ? 'dark' : 'light'
+  })
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [counts, setCounts] = useState({ keywords: 0, articles: 0, rank: 0 })
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [paletteQuery, setPaletteQuery] = useState('')
@@ -119,6 +122,10 @@ export function AppShell() {
   }, [language, copy.documentTitle])
 
   useEffect(() => {
+    recordRecentRoute(location.pathname)
+  }, [location.pathname])
+
+  useEffect(() => {
     Promise.allSettled([keywordsApi.list(), articlesApi.list()]).then(([kwResult, artResult]) => {
       setCounts({
         keywords: kwResult.status === 'fulfilled' ? kwResult.value.length : 0,
@@ -132,7 +139,8 @@ export function AppShell() {
     {
       label: language === 'zh' ? '核心工作流' : 'Core Workflow',
       items: [
-        { to: '/', label: copy.nav.dashboard, icon: <DashboardIcon /> },
+        { to: '/', label: language === 'zh' ? '首页' : 'Home', icon: <SparkIcon /> },
+        { to: '/dashboard', label: copy.nav.dashboard, icon: <GridIcon /> },
         { to: '/keywords', label: copy.nav.keywords, icon: <LibraryIcon />, badgeKey: 'keywords' },
         { to: '/articles', label: copy.nav.articles, icon: <ArticlesIcon />, badgeKey: 'articles' },
         { to: '/articles/geo-writer', label: copy.nav.geoWriter, icon: <WriterIcon /> },
@@ -145,7 +153,6 @@ export function AppShell() {
         { to: '/keywords/recommend', label: copy.nav.recommend, icon: <RecommendIcon /> },
         { to: '/keywords/analyze', label: copy.nav.analyze, icon: <AnalyzeIcon /> },
         { to: '/articles/image-planner', label: copy.nav.imagePlanner, icon: <ImageIcon /> },
-        { to: '/ai-chat', label: copy.nav.chat, icon: <ChatIcon /> },
       ],
     },
     {
@@ -153,7 +160,7 @@ export function AppShell() {
       items: [
         { to: '/import', label: copy.nav.import, icon: <ImportIcon /> },
         { to: '/rank-tracker', label: copy.nav.rank, icon: <RankIcon />, badgeKey: 'rank' },
-        { to: '/indexing', label: language === 'zh' ? 'Google Indexing' : 'Google Indexing', icon: <IndexingIcon /> },
+        { to: '/indexing', label: 'Google Indexing', icon: <IndexingIcon /> },
         { to: '/local-data', label: language === 'zh' ? '本地数据' : 'Local Data', icon: <DatabaseIcon /> },
         { to: '/settings', label: language === 'zh' ? '设置' : 'Settings', icon: <SettingsIcon /> },
       ],
@@ -211,7 +218,13 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKeydown)
   }, [filteredQuickNavItems, navigate, paletteIndex, paletteOpen])
 
-  const footerLangClass = useMemo(() => ({ zh: language === 'zh' ? 'lang-opt active' : 'lang-opt', en: language === 'en' ? 'lang-opt active' : 'lang-opt' }), [language])
+  const footerLangClass = useMemo(
+    () => ({
+      zh: language === 'zh' ? 'lang-opt active' : 'lang-opt',
+      en: language === 'en' ? 'lang-opt active' : 'lang-opt',
+    }),
+    [language],
+  )
 
   return (
     <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -221,7 +234,7 @@ export function AppShell() {
           {!sidebarCollapsed ? (
             <div className="sidebar-logo-copy">
               <div className="sidebar-logo-text">SmartKey</div>
-              <div className="sidebar-logo-sub">{language === 'zh' ? 'Linear SEO Workbench' : 'Linear SEO Workbench'}</div>
+              <div className="sidebar-logo-sub">Linear SEO Workbench</div>
             </div>
           ) : null}
           <button

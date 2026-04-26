@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { settingsApi } from '@/services/api'
 import { useI18n } from '@/i18n/useI18n'
+import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
 import type { AIProvider, SettingsItem } from '@/types'
 import { AI_PROVIDER_GUIDES, INDEXING_GUIDE, SERPAPI_GUIDE } from '@/pages/settingsGuideConfig'
 
@@ -128,6 +129,7 @@ export function SettingsPage() {
   const [visible, setVisible] = useState<Record<string, boolean>>({})
   const [expandedGuide, setExpandedGuide] = useState<Record<string, boolean>>({})
   const [lastEnabledAiProvider, setLastEnabledAiProvider] = useState<AIProvider | undefined>('minimax')
+  const [focusSection, setFocusSection] = useState('')
 
   const loadSettings = async () => {
     const data = await settingsApi.get()
@@ -139,6 +141,12 @@ export function SettingsPage() {
 
   useEffect(() => {
     loadSettings()
+  }, [])
+
+  useEffect(() => {
+    const draft = consumeWorkbenchTaskDraft('settings')
+    if (!draft?.prefill) return
+    if (typeof draft.prefill.section === 'string') setFocusSection(draft.prefill.section)
   }, [])
 
   const setPartial = (patch: Partial<SettingsItem>) => {
@@ -207,6 +215,7 @@ export function SettingsPage() {
         </div>
         <div className="linear-header-meta">
           <span>{language === 'zh' ? '配置中心' : 'Configuration Center'}</span>
+          <span>{language === 'zh' ? `已就绪 ${aiReadyCount}` : `${aiReadyCount} ready`}</span>
         </div>
       </div>
 
@@ -291,13 +300,18 @@ export function SettingsPage() {
             </div>
           </div>
 
-          <div className="settings-provider-group">
+          <div className={`settings-provider-group ${focusSection === 'ai' ? 'settings-ai-focus' : ''}`}>
             <div className="settings-group-head">
               <div className="linear-panel-title">{language === 'zh' ? 'AI 供应商' : 'AI Providers'}</div>
               <span className="settings-current-badge">
                 {language === 'zh' ? '当前生效：' : 'Active: '}
                 {activeAiProvider ? AI_LABEL[activeAiProvider] : language === 'zh' ? '未启用' : 'None'}
               </span>
+            </div>
+            <div className="settings-group-subnote">
+              {language === 'zh'
+                ? '只建议同时启用一个默认模型，避免本地工作流里出现不确定切换。'
+                : 'Keep one provider enabled by default so the local workflow stays predictable.'}
             </div>
             <div className="form-grid settings-grid-2">
               {AI_PROVIDERS.map((item) => {
@@ -366,10 +380,15 @@ export function SettingsPage() {
             </div>
           </div>
 
-          <div className="settings-provider-group">
+          <div className={`settings-provider-group ${focusSection === 'seo' ? 'settings-ai-focus' : ''}`}>
             <div className="settings-group-head">
               <div className="linear-panel-title">SEO（SerpAPI）</div>
               <span className="settings-current-badge">{rankReady ? (language === 'zh' ? 'Rank 已就绪' : 'Rank Ready') : (language === 'zh' ? 'Rank 待配置' : 'Rank Needs Setup')}</span>
+            </div>
+            <div className="settings-group-subnote">
+              {language === 'zh'
+                ? '这是可选模块，不会影响关键词库、文章追踪和 GEO Writer 的本地可用性。'
+                : 'This is optional and does not block the local keyword, article, or GEO Writer workflows.'}
             </div>
             <div className="field-block settings-provider-card">
               <div className="settings-provider-head">
@@ -439,8 +458,18 @@ export function SettingsPage() {
             </div>
           </div>
 
-          <div className="settings-provider-group">
-            <div className="linear-panel-title">Indexing</div>
+          <div className={`settings-provider-group ${focusSection === 'indexing' ? 'settings-ai-focus' : ''}`}>
+            <div className="settings-group-head">
+              <div className="linear-panel-title">{language === 'zh' ? '本地默认与 Indexing' : 'Local Defaults & Indexing'}</div>
+              <span className="settings-current-badge">
+                {indexingConfigured ? (language === 'zh' ? '凭证已检测' : 'Credentials detected') : (language === 'zh' ? '凭证未配置' : 'Credentials missing')}
+              </span>
+            </div>
+            <div className="settings-group-subnote">
+              {language === 'zh'
+                ? '这里管理语言、默认文章参数、Python 路径与 Google Indexing 凭证。'
+                : 'Manage language, article defaults, Python path, and Google Indexing credentials here.'}
+            </div>
             <div className="form-grid settings-grid-2">
               <div className="field-block">
                 <label>{copy.language}</label>
@@ -512,6 +541,17 @@ export function SettingsPage() {
               {isDirty ? (language === 'zh' ? '● 未保存更改' : '● Unsaved changes') : (language === 'zh' ? '配置已同步' : 'Settings synced')}
             </div>
             {message ? <div className="muted-text">{message}</div> : null}
+          </div>
+          <div className="linear-panel-title" style={{ marginTop: 16 }}>{language === 'zh' ? '使用建议' : 'Working Notes'}</div>
+          <div className="ai-home-principles">
+            <div className="ai-home-principle">
+              <strong>{language === 'zh' ? '先保存再测试' : 'Save before testing'}</strong>
+              <span>{language === 'zh' ? '修改 AI、SerpAPI 或 Google 凭证后，先保存设置，再回到对应页面验证。' : 'After updating AI, SerpAPI, or Google credentials, save settings before testing the target workflow.'}</span>
+            </div>
+            <div className="ai-home-principle">
+              <strong>{language === 'zh' ? '核心工作流优先' : 'Core workflow first'}</strong>
+              <span>{language === 'zh' ? '即使不配置可选集成，关键词、文章和 GEO Writer 也应该保持可进入、可编辑。' : 'Even without optional integrations, keywords, articles, and GEO Writer should remain browsable and editable.'}</span>
+            </div>
           </div>
         </section>
       </div>

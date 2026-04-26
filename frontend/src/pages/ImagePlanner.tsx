@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { aiApi, articlesApi } from '@/services/api'
 import { useI18n } from '@/i18n/useI18n'
+import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
 import type { ArticleItem, ImagePlanItem } from '@/types'
 
 const styleOptions = [
@@ -30,6 +31,15 @@ export function ImagePlannerPage() {
 
   useEffect(() => {
     articlesApi.list().then(setArticles).catch(() => setArticles([]))
+  }, [])
+
+  useEffect(() => {
+    const draft = consumeWorkbenchTaskDraft('articles.image-planner')
+    if (!draft?.prefill) return
+    if (typeof draft.prefill.title === 'string') setTitle(draft.prefill.title)
+    if (typeof draft.prefill.content === 'string') setContent(draft.prefill.content)
+    if (typeof draft.prefill.style === 'string') setStyle(draft.prefill.style)
+    if (typeof draft.prefill.count === 'number') setCount(String(draft.prefill.count))
   }, [])
 
   const selectedArticle = useMemo(() => articles.find((item) => item.id === selectedArticleId) || null, [articles, selectedArticleId])

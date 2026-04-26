@@ -219,3 +219,135 @@ export interface IndexingPrepareResult {
   metadata_issues: string[]
   generated_files: Record<string, string>
 }
+
+export interface RankTemplatePreview {
+  filename: string
+  sheet_name: string
+  keyword_count: number
+  history_column_count: number
+  history_headers: string[]
+  keyword_preview: string[]
+}
+
+export interface RankResultItem {
+  keyword: string
+  found: boolean
+  page: number | null
+  position: number | null
+  display_rank: string
+  url: string
+  provider: string
+  error: string
+  queried_at: string
+}
+
+export interface RankMatrixRow {
+  keyword: string
+  values: string[]
+  latest_value: string
+  latest_found: boolean
+  miss_streak: number
+  history_items: Array<{ column: string; value: string }>
+  latest_result?: RankResultItem | null
+}
+
+export interface RankJobSummary {
+  total: number
+  found: number
+  errors: number
+  notFound: number
+  mode?: 'batch_template_run' | 'single_keyword_check'
+  input_file?: string
+  output_file?: string
+  detail_file?: string
+  sheet_name?: string
+  new_date_column?: string
+  keyword_count?: number
+  template_preview?: RankTemplatePreview
+  matrix?: {
+    columns: string[]
+    rows: RankMatrixRow[]
+  }
+}
+
+export interface RankJobItem {
+  id: string
+  domain: string
+  provider: string
+  source: string
+  status: string
+  summary: RankJobSummary
+  params: Record<string, unknown>
+  started_at: string
+  finished_at: string
+  created_at: string
+}
+
+export interface ContextSummary {
+  keyword_count: number
+  article_count: number
+  pending_count: number
+  model_name: string
+  current_page: string
+}
+
+export interface WorkspaceContext {
+  context_summary: ContextSummary
+}
+
+export type ComposerAction =
+  | { type: 'add_keywords'; payload: { keywords: string[] } }
+  | { type: 'prefill_page'; payload: { page: string; fields: Record<string, string> } }
+  | { type: 'navigate'; payload: { path: string } }
+  | { type: 'create_geo_draft'; payload: Record<string, unknown> }
+  | { type: 'submit_index'; payload: { urls: string[] } }
+
+export type WorkbenchIntent = 'keyword_expansion' | 'unknown' | string
+
+export interface WorkbenchDispatchRequest {
+  prompt: string
+  current_route: string
+  language: string
+}
+
+export interface WorkbenchDispatchResponse {
+  intent: WorkbenchIntent
+  mode: string
+  reply: string
+  actions: ComposerAction[]
+  context_summary: ContextSummary
+  requires_confirmation: boolean
+  target_route?: string
+  prefill?: Record<string, unknown>
+  suggested_action?: string
+  confidence?: number
+  reason?: string
+}
+
+export interface WorkbenchExecuteRequest {
+  action: ComposerAction
+}
+
+export interface WorkbenchExecuteResponse {
+  result_summary: {
+    created_count?: number
+    skipped_count?: number
+    created_keywords?: string[]
+    skipped_keywords?: string[]
+    [key: string]: unknown
+  }
+  created?: KeywordItem[]
+  skipped?: string[]
+  requires_confirmation: boolean
+}
+
+export interface WorkbenchTaskDraft {
+  taskId: string
+  pageKey: string
+  targetRoute: string
+  sourceIntent: string
+  prefill: Record<string, unknown>
+  suggestedAction?: string
+  reason?: string
+  createdAt: string
+}

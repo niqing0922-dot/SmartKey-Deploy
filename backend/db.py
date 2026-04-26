@@ -47,7 +47,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "grok_api_key": "",
     "cohere_api_key": "",
     "serpapi_key": "",
-    "serpapi_enabled": False,
+    "serpapi_enabled": True,
     "dataforseo_api_login": "",
     "dataforseo_api_password": "",
     "dataforseo_enabled": False,
@@ -697,6 +697,26 @@ def list_rank_jobs(limit: int = 20) -> list[dict[str, Any]]:
             }
         )
     return jobs
+
+
+def get_rank_job(job_id: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM rank_jobs WHERE id = ?", (job_id,)).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    return {
+        "id": item["id"],
+        "domain": item["domain"],
+        "provider": item["provider"],
+        "source": item["source"],
+        "status": item["status"],
+        "summary": _loads(item.get("summary_json"), {}),
+        "params": _loads(item.get("params_json"), {}),
+        "started_at": item["started_at"],
+        "finished_at": item["finished_at"],
+        "created_at": item["created_at"],
+    }
 
 
 def list_rank_results(job_id: str) -> list[dict[str, Any]]:

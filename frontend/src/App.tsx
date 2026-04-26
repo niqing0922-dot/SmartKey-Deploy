@@ -1,5 +1,6 @@
-﻿import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
+import { AIHomePage } from '@/pages/AIHome'
 import { DashboardPage } from '@/pages/Dashboard'
 import { KeywordsPage } from '@/pages/Keywords'
 import { ArticlesPage } from '@/pages/Articles'
@@ -11,7 +12,6 @@ import { RecommendPage } from '@/pages/Recommend'
 import { AnalyzePage } from '@/pages/Analyze'
 import { ImportPage } from '@/pages/Import'
 import { MatrixPage } from '@/pages/Matrix'
-import { ChatPage } from '@/pages/Chat'
 import { RankPage } from '@/pages/Rank'
 import { IndexingPage } from '@/pages/Indexing'
 
@@ -19,7 +19,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<AppShell />}>
-        <Route index element={<DashboardPage />} />
+        <Route index element={<AIHomePage />} />
+        <Route path="dashboard" element={<DashboardPage />} />
         <Route path="keywords" element={<KeywordsPage />} />
         <Route path="articles" element={<ArticlesPage />} />
         <Route path="articles/geo-writer" element={<GeoWriterPage />} />
@@ -28,7 +29,6 @@ export default function App() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="import" element={<ImportPage />} />
         <Route path="matrix" element={<MatrixPage />} />
-        <Route path="ai-chat" element={<ChatPage />} />
         <Route path="keywords/recommend" element={<RecommendPage />} />
         <Route path="keywords/analyze" element={<AnalyzePage />} />
         <Route path="rank-tracker" element={<RankPage />} />

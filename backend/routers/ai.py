@@ -168,7 +168,7 @@ async def run_model(provider: str, prompt: str, settings: dict[str, Any], reques
         if not api_key:
             api_error(status_code=400, code='configuration_required', message='MiniMax API key is not configured.', request=request, details={'provider': 'minimax'})
         body = {
-            'model': 'MiniMax-M2.5',
+            'model': 'MiniMax-M2.7-highspeed',
             'messages': [{'role': 'system', 'content': SYSTEM_RULE}, {'role': 'user', 'content': prompt}],
             'stream': False,
             'temperature': 0.3,

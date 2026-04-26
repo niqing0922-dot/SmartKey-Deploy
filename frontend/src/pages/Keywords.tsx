@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { keywordsApi } from '@/services/api'
 import { useI18n } from '@/i18n/useI18n'
+import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
 import type { KeywordItem, KeywordPriority, KeywordStatus, KeywordType } from '@/types'
 
 const emptyForm = {
@@ -23,12 +24,12 @@ export function KeywordsPage() {
   const [status, setStatus] = useState('')
   const [type, setType] = useState('')
   const [sort, setSort] = useState('default')
-  const [selectedId, setSelectedId] = useState<string>('')
+  const [selectedId, setSelectedId] = useState('')
   const [inspector, setInspector] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [creating, setCreating] = useState(false)
   const [quickKeyword, setQuickKeyword] = useState('')
-  const [editingId, setEditingId] = useState<string>('')
+  const [editingId, setEditingId] = useState('')
   const [editingKeyword, setEditingKeyword] = useState('')
 
   const load = async () => {
@@ -36,7 +37,38 @@ export function KeywordsPage() {
     setItems(list)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
+
+  useEffect(() => {
+    const draft = consumeWorkbenchTaskDraft('keywords')
+    if (draft?.prefill) {
+      const keyword = typeof draft.prefill.keyword === 'string' ? draft.prefill.keyword : ''
+      const quick = typeof draft.prefill.quickKeyword === 'string' ? draft.prefill.quickKeyword : keyword
+      const nextSearch = typeof draft.prefill.search === 'string' ? draft.prefill.search : keyword
+      const nextType = typeof draft.prefill.type === 'string' ? draft.prefill.type : ''
+      const nextStatus = typeof draft.prefill.status === 'string' ? draft.prefill.status : ''
+      if (keyword || quick || nextSearch) {
+        setSearch(nextSearch)
+        setQuickKeyword(quick || keyword)
+      }
+      if (nextType) setType(nextType)
+      if (nextStatus) setStatus(nextStatus)
+      return
+    }
+    const raw = window.localStorage.getItem('smartkey.global.keywords')
+    if (!raw) return
+    try {
+      const legacy = JSON.parse(raw)
+      if (typeof legacy.keyword === 'string') {
+        setSearch(legacy.keyword)
+        setQuickKeyword(legacy.keyword)
+      }
+    } finally {
+      window.localStorage.removeItem('smartkey.global.keywords')
+    }
+  }, [])
 
   const filtered = useMemo(() => {
     const next = items.filter((item) => {
@@ -187,7 +219,7 @@ export function KeywordsPage() {
 
       <div className="page-body linear-workbench">
         <section className="linear-left">
-          <div className="linear-panel-title">{language === 'zh' ? '快速添加' : 'Quick Add'}</div>
+          <div className="linear-panel-title">{language === 'zh' ? '快速新增' : 'Quick Add'}</div>
           <div className="linear-inline-create">
             <input
               data-testid="keywords.quick-input"
@@ -198,7 +230,9 @@ export function KeywordsPage() {
               }}
               placeholder={copy.keywordPlaceholder}
             />
-            <button className="btn btn-primary btn-sm" data-testid="keywords.create-button" onClick={onCreate} disabled={creating}>{common.add}</button>
+            <button className="btn btn-primary btn-sm" data-testid="keywords.create-button" onClick={onCreate} disabled={creating}>
+              {common.add}
+            </button>
           </div>
 
           <div className="linear-panel-title">{language === 'zh' ? '筛选' : 'Filters'}</div>
@@ -222,7 +256,7 @@ export function KeywordsPage() {
             </select>
           </div>
 
-          <div className="linear-panel-title">{language === 'zh' ? '状态概览' : 'Overview'}</div>
+          <div className="linear-panel-title">{language === 'zh' ? '概览' : 'Overview'}</div>
           <div className="linear-metric-list">
             <div><span>{language === 'zh' ? '总计' : 'Total'}</span><strong>{metrics.all}</strong></div>
             <div><span>{common.pending}</span><strong>{metrics.pending}</strong></div>

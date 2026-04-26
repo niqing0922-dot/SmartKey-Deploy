@@ -17,6 +17,7 @@ from backend.routers.geo_writer import router as geo_writer_router
 from backend.routers.indexing import router as indexing_router
 from backend.routers.rank import router as rank_router
 from backend.routers.settings import router as settings_router
+from backend.routers.workbench import router as workbench_router
 
 init_db()
 
@@ -116,6 +117,7 @@ app.include_router(ai_router)
 app.include_router(rank_router)
 app.include_router(indexing_router)
 app.include_router(diagnostics_router)
+app.include_router(workbench_router)
 
 
 @app.get("/health")
