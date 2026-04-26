@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom'
+import { Card } from '@/components/ui/Card'
+import { EmptyState } from '@/components/ui/States'
 import { readRecentRoutes } from '@/lib/workbenchDrafts'
 import { useUiLanguage } from '@/hooks/useUiLanguage'
 
@@ -24,19 +26,19 @@ const WORKFLOW_CARDS = {
       title: '先整理关键词库',
       desc: '先把核心词、长尾词和场景词整理清楚，再推进后续写作和验证。',
       href: '/keywords',
-      meta: '适合搭基础结构',
+      meta: '适合搭建基础结构',
     },
     {
       title: '再进入内容生产',
-      desc: '从关键词进入文章追踪和 GEO Writer，把草稿、配图和发布状态串起来。',
+      desc: '从关键词进入文章追踪和 GEO Writer，让草稿、配图和发布状态连成一条线。',
       href: '/articles/geo-writer',
       meta: '适合直接推进产出',
     },
     {
       title: '最后验证收录与排名',
-      desc: '发布后再检查 Indexing、Rank 和本地数据，完成闭环。',
+      desc: '发布后再检查 Indexing、Rank 和本地数据，把收尾闭环做完整。',
       href: '/indexing',
-      meta: '适合上线后的收尾验证',
+      meta: '适合上线后的验证',
     },
   ],
   en: [
@@ -86,7 +88,9 @@ export function AIHomePage() {
     <div id="page-ai-home" className="page page-active ai-home-page">
       <div className="ai-home-shell">
         <section className="ai-home-hero">
-          <div className="ai-home-kicker">{language === 'zh' ? 'SmartKey 工作台首页' : 'SmartKey Workbench Home'}</div>
+          <div className="ai-home-kicker">
+            {language === 'zh' ? 'SmartKey 工作台首页' : 'SmartKey Workbench Home'}
+          </div>
           <h1 className="page-title">
             {language === 'zh' ? '从一条清晰的工作流开始' : 'Start from a clear workflow'}
           </h1>
@@ -137,7 +141,7 @@ export function AIHomePage() {
         </section>
 
         <section className="ai-home-lower">
-          <div className="ai-home-panel">
+          <Card className="ai-home-panel">
             <div className="ai-home-panel-head">
               <div>
                 <div className="ai-home-section-title">{language === 'zh' ? '最近页面' : 'Recent Pages'}</div>
@@ -147,11 +151,10 @@ export function AIHomePage() {
               </div>
             </div>
             {!recentRoutes.length ? (
-              <div className="ai-home-empty">
-                {language === 'zh'
-                  ? '还没有跨页记录，先从上面的三条主链路开始。'
-                  : 'No cross-page history yet. Start from one of the three primary workflows above.'}
-              </div>
+              <EmptyState
+                title={language === 'zh' ? '还没有跨页记录' : 'No recent pages yet'}
+                description={language === 'zh' ? '先从上面的三条主链路开始。' : 'Start from one of the three primary workflows above.'}
+              />
             ) : (
               <div className="ai-home-route-list">
                 {recentRoutes.map((route) => (
@@ -162,9 +165,9 @@ export function AIHomePage() {
                 ))}
               </div>
             )}
-          </div>
+          </Card>
 
-          <div className="ai-home-panel">
+          <Card className="ai-home-panel">
             <div className="ai-home-panel-head">
               <div>
                 <div className="ai-home-section-title">{language === 'zh' ? '工作原则' : 'Working Principles'}</div>
@@ -178,18 +181,30 @@ export function AIHomePage() {
             <div className="ai-home-principles">
               <div className="ai-home-principle">
                 <strong>{language === 'zh' ? '先建库' : 'Library first'}</strong>
-                <span>{language === 'zh' ? '关键词结构清楚，后面的写作和验证才会稳定。' : 'Clear keyword structure keeps writing and validation stable.'}</span>
+                <span>
+                  {language === 'zh'
+                    ? '关键词结构清楚，后面的写作和验证才会稳定。'
+                    : 'Clear keyword structure keeps writing and validation stable.'}
+                </span>
               </div>
               <div className="ai-home-principle">
                 <strong>{language === 'zh' ? '再产出' : 'Then produce'}</strong>
-                <span>{language === 'zh' ? '内容生产集中在文章追踪和 GEO Writer，不在首页分散操作。' : 'Content production stays centered in article tracking and GEO Writer, not scattered across the home page.'}</span>
+                <span>
+                  {language === 'zh'
+                    ? '内容生产集中在文章追踪和 GEO Writer，不在首页分散操作。'
+                    : 'Content production stays centered in article tracking and GEO Writer, not scattered across the home page.'}
+                </span>
               </div>
               <div className="ai-home-principle">
                 <strong>{language === 'zh' ? '最后验证' : 'Finally validate'}</strong>
-                <span>{language === 'zh' ? 'Indexing、Rank 和本地数据放在后链路，帮助你把收尾做完整。' : 'Indexing, rank, and local data live later in the chain to help you finish the loop cleanly.'}</span>
+                <span>
+                  {language === 'zh'
+                    ? 'Indexing、Rank 和本地数据放在后链路，帮助你把收尾做完整。'
+                    : 'Indexing, rank, and local data live later in the chain to help you finish the loop cleanly.'}
+                </span>
               </div>
             </div>
-          </div>
+          </Card>
         </section>
       </div>
     </div>

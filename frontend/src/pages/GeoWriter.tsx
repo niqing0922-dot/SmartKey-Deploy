@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { geoWriterApi, keywordsApi, settingsApi } from '@/services/api'
+import { Card } from '@/components/ui/Card'
+import { Field } from '@/components/ui/Field'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { Alert, EmptyState } from '@/components/ui/States'
 import { useI18n } from '@/i18n/useI18n'
 import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
+import { geoWriterApi, keywordsApi, settingsApi } from '@/services/api'
 import type { ContentLanguage, GeoDraftItem, KeywordItem, SettingsItem } from '@/types'
 
 const contentLanguageOptions: Array<{ value: ContentLanguage; label: string }> = [
@@ -32,7 +36,9 @@ const targetLengthOptions = [600, 1000, 1500, 2500, 3500, 5000]
 
 function ensureOutlineList(value: unknown) {
   if (Array.isArray(value)) return value
-  if (value && typeof value === 'object' && Array.isArray((value as any).sections)) return (value as any).sections
+  if (value && typeof value === 'object' && Array.isArray((value as { sections?: unknown[] }).sections)) {
+    return (value as { sections: unknown[] }).sections
+  }
   return []
 }
 
@@ -275,118 +281,115 @@ export function GeoWriterPage() {
 
   return (
     <div id="page-aiwrite" className="page page-active">
-      <div className="page-header linear-page-header">
-        <div>
-          <div className="page-title">{copy.title}</div>
-          <div className="page-desc">{copy.desc}</div>
-        </div>
-        <div className="linear-header-meta">
-          <span>{language === 'zh' ? '三栏写作流' : 'Three-panel writing flow'}</span>
-          <span>J / K</span>
-        </div>
-      </div>
+      <PageHeader
+        title={copy.title}
+        description={copy.desc}
+        actions={
+          <div className="linear-header-meta">
+            <span>{language === 'zh' ? '三栏写作流' : 'Three-panel writing flow'}</span>
+            <span>J / K</span>
+          </div>
+        }
+      />
 
       <div className="page-body">
-        {error ? <div className="alert alert-warn">{error}</div> : null}
-        {message ? <div className="alert alert-success">{message}</div> : null}
+        {error ? <Alert tone="warn">{error}</Alert> : null}
+        {message ? <Alert tone="success">{message}</Alert> : null}
 
         <div className="linear-workbench geo-linear-workbench">
           <section className="linear-left geo-left-panel">
-            <div className="linear-panel-title">{copy.settingsTitle}</div>
-            <div className="linear-inspector-grid">
-              <div className="field-block">
-                <label>{copy.articleTitle}</label>
-                <input
-                  data-testid="geo.title-input"
-                  value={form.title}
-                  onChange={(event) => setForm({ ...form, title: event.target.value })}
-                  placeholder={copy.articleTitlePlaceholder}
-                />
+            <Card>
+              <div className="linear-panel-title">{copy.settingsTitle}</div>
+              <div className="linear-inspector-grid">
+                <Field label={copy.articleTitle}>
+                  <input
+                    data-testid="geo.title-input"
+                    value={form.title}
+                    onChange={(event) => setForm({ ...form, title: event.target.value })}
+                    placeholder={copy.articleTitlePlaceholder}
+                  />
+                </Field>
+                <Field label={copy.keywords}>
+                  <textarea
+                    rows={4}
+                    value={form.secondary_keywords}
+                    onChange={(event) => setForm({ ...form, secondary_keywords: event.target.value })}
+                    placeholder={copy.keywordsPlaceholder}
+                  />
+                </Field>
+                <Field label={copy.industry}>
+                  <input
+                    value={form.industry}
+                    onChange={(event) => setForm({ ...form, industry: event.target.value })}
+                    placeholder={copy.industryPlaceholder}
+                  />
+                </Field>
+                <Field label={copy.articleType}>
+                  <select value={form.article_type} onChange={(event) => setForm({ ...form, article_type: event.target.value })}>
+                    {articleTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={copy.targetLength}>
+                  <select value={String(form.target_length)} onChange={(event) => setForm({ ...form, target_length: Number(event.target.value) })}>
+                    {targetLengthOptions.map((option) => (
+                      <option key={option} value={option}>~{option}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={copy.contentLanguage}>
+                  <select value={form.content_language} onChange={(event) => setForm({ ...form, content_language: event.target.value as ContentLanguage })}>
+                    {contentLanguageOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={copy.contentBlocks}>
+                  <div className="aw-section-picker">
+                    {contentBlockOptions.map((option) => (
+                      <span
+                        key={option.value}
+                        className={`chip ${form.content_blocks.includes(option.value) ? 'sel' : ''}`}
+                        onClick={() => toggleContentBlock(option.value)}
+                      >
+                        {option.label}
+                      </span>
+                    ))}
+                  </div>
+                </Field>
+                <Field label={copy.pickFromLibrary}>
+                  <div className="aw-kw-chips">
+                    {!keywords.length ? (
+                      <span className="muted-text">{copy.emptyKeywordLibrary}</span>
+                    ) : keywords.slice(0, 40).map((item) => (
+                      <span key={item.id} className="chip" onClick={() => addKeywordChip(item.keyword)}>
+                        {item.keyword}
+                      </span>
+                    ))}
+                  </div>
+                </Field>
               </div>
-              <div className="field-block">
-                <label>{copy.keywords}</label>
-                <textarea
-                  rows={4}
-                  value={form.secondary_keywords}
-                  onChange={(event) => setForm({ ...form, secondary_keywords: event.target.value })}
-                  placeholder={copy.keywordsPlaceholder}
-                />
-              </div>
-              <div className="field-block">
-                <label>{copy.industry}</label>
-                <input
-                  value={form.industry}
-                  onChange={(event) => setForm({ ...form, industry: event.target.value })}
-                  placeholder={copy.industryPlaceholder}
-                />
-              </div>
-              <div className="field-block">
-                <label>{copy.articleType}</label>
-                <select value={form.article_type} onChange={(event) => setForm({ ...form, article_type: event.target.value })}>
-                  {articleTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="field-block">
-                <label>{copy.targetLength}</label>
-                <select value={String(form.target_length)} onChange={(event) => setForm({ ...form, target_length: Number(event.target.value) })}>
-                  {targetLengthOptions.map((option) => (
-                    <option key={option} value={option}>~{option}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="field-block">
-                <label>{copy.contentLanguage}</label>
-                <select value={form.content_language} onChange={(event) => setForm({ ...form, content_language: event.target.value as ContentLanguage })}>
-                  {contentLanguageOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="field-block">
-                <label>{copy.contentBlocks}</label>
-                <div className="aw-section-picker">
-                  {contentBlockOptions.map((option) => (
-                    <span
-                      key={option.value}
-                      className={`chip ${form.content_blocks.includes(option.value) ? 'sel' : ''}`}
-                      onClick={() => toggleContentBlock(option.value)}
-                    >
-                      {option.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div className="field-block">
-                <label>{copy.pickFromLibrary}</label>
-                <div className="aw-kw-chips">
-                  {!keywords.length ? (
-                    <span className="muted-text">{copy.emptyKeywordLibrary}</span>
-                  ) : keywords.slice(0, 40).map((item) => (
-                    <span key={item.id} className="chip" onClick={() => addKeywordChip(item.keyword)}>
-                      {item.keyword}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <button
-              id="btn-aw"
-              data-testid="geo.generate-button"
-              className="btn btn-primary btn-full"
-              onClick={generate}
-              disabled={loading}
-            >
-              {loading ? common.generating : copy.generate}
-            </button>
+              <button
+                id="btn-aw"
+                data-testid="geo.generate-button"
+                className="btn btn-primary btn-full"
+                onClick={generate}
+                disabled={loading}
+              >
+                {loading ? common.generating : copy.generate}
+              </button>
+            </Card>
           </section>
 
           <section className="linear-main geo-main-panel">
             {!selected ? (
-              <div id="aw-output" className="aw-output aw-output-empty">
-                <div>{copy.emptyState}</div>
-              </div>
+              <Card className="aw-output aw-output-empty">
+                <EmptyState
+                  title={language === 'zh' ? '还没有文章草稿' : 'No draft yet'}
+                  description={copy.emptyState}
+                />
+              </Card>
             ) : (
               <>
                 <div className="aiwrite-output-meta">
@@ -464,21 +467,23 @@ export function GeoWriterPage() {
           </section>
 
           <section className="linear-right geo-right-panel">
-            <div className="linear-panel-title">{copy.history}</div>
-            <div className="geo-history-list">
-              {!drafts.length ? (
-                <span className="muted-text">{copy.noHistory}</span>
-              ) : drafts.map((draft) => (
-                <button
-                  key={draft.id}
-                  className={`draft-item geo-history-item ${selected?.id === draft.id ? 'active' : ''}`}
-                  onClick={() => setSelected(draft)}
-                >
-                  <strong className="geo-history-title" title={draft.title}>{draft.title}</strong>
-                  <span className="muted-text">{draft.provider} · {new Date(draft.created_at).toLocaleString()}</span>
-                </button>
-              ))}
-            </div>
+            <Card>
+              <div className="linear-panel-title">{copy.history}</div>
+              <div className="geo-history-list">
+                {!drafts.length ? (
+                  <span className="muted-text">{copy.noHistory}</span>
+                ) : drafts.map((draft) => (
+                  <button
+                    key={draft.id}
+                    className={`draft-item geo-history-item ${selected?.id === draft.id ? 'active' : ''}`}
+                    onClick={() => setSelected(draft)}
+                  >
+                    <strong className="geo-history-title" title={draft.title}>{draft.title}</strong>
+                    <span className="muted-text">{draft.provider} · {new Date(draft.created_at).toLocaleString()}</span>
+                  </button>
+                ))}
+              </div>
+            </Card>
           </section>
         </div>
       </div>

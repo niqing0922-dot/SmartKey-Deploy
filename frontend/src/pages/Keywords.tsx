@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { keywordsApi } from '@/services/api'
+import { Card } from '@/components/ui/Card'
+import { Field } from '@/components/ui/Field'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { SearchToolbar } from '@/components/ui/SearchToolbar'
+import { EmptyState } from '@/components/ui/States'
 import { useI18n } from '@/i18n/useI18n'
 import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
+import { keywordsApi } from '@/services/api'
 import type { KeywordItem, KeywordPriority, KeywordStatus, KeywordType } from '@/types'
 
 const emptyForm = {
@@ -57,6 +62,7 @@ export function KeywordsPage() {
       if (nextStatus) setStatus(nextStatus)
       return
     }
+
     const raw = window.localStorage.getItem('smartkey.global.keywords')
     if (!raw) return
     try {
@@ -205,64 +211,74 @@ export function KeywordsPage() {
 
   return (
     <div id="page-library" className="page page-active">
-      <div className="page-header linear-page-header">
-        <div>
-          <div className="page-title">{copy.title}</div>
-          <div className="page-desc">{copy.desc}</div>
-        </div>
-        <div className="linear-header-meta">
-          <span>⌘K</span>
-          <span>J / K</span>
-          <span>{copy.currentResults.replace('{count}', String(filtered.length))}</span>
-        </div>
-      </div>
+      <PageHeader
+        title={copy.title}
+        description={copy.desc}
+        actions={
+          <div className="linear-header-meta">
+            <span>{language === 'zh' ? '键盘导航' : 'Keyboard navigation'}</span>
+            <span>J / K</span>
+            <span>{copy.currentResults.replace('{count}', String(filtered.length))}</span>
+          </div>
+        }
+      />
 
       <div className="page-body linear-workbench">
         <section className="linear-left">
-          <div className="linear-panel-title">{language === 'zh' ? '快速新增' : 'Quick Add'}</div>
-          <div className="linear-inline-create">
-            <input
-              data-testid="keywords.quick-input"
-              value={quickKeyword}
-              onChange={(event) => setQuickKeyword(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') onCreate()
-              }}
-              placeholder={copy.keywordPlaceholder}
-            />
-            <button className="btn btn-primary btn-sm" data-testid="keywords.create-button" onClick={onCreate} disabled={creating}>
-              {common.add}
-            </button>
-          </div>
+          <Card>
+            <div className="linear-panel-title">{language === 'zh' ? '快速新增' : 'Quick Add'}</div>
+            <div className="linear-inline-create">
+              <input
+                data-testid="keywords.quick-input"
+                value={quickKeyword}
+                onChange={(event) => setQuickKeyword(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') onCreate()
+                }}
+                placeholder={copy.keywordPlaceholder}
+              />
+              <button className="btn btn-primary btn-sm" data-testid="keywords.create-button" onClick={onCreate} disabled={creating}>
+                {common.add}
+              </button>
+            </div>
+          </Card>
 
-          <div className="linear-panel-title">{language === 'zh' ? '筛选' : 'Filters'}</div>
-          <div className="linear-filter-stack">
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} />
-            <select value={status} onChange={(event) => setStatus(event.target.value)}>
-              <option value="">{copy.allStatus}</option>
-              <option value="pending">{common.pending}</option>
-              <option value="planned">{common.planned}</option>
-              <option value="done">{common.published}</option>
-            </select>
-            <select value={type} onChange={(event) => setType(event.target.value)}>
-              <option value="">{copy.allTypes}</option>
-              {Object.entries(copy.typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-            <select value={sort} onChange={(event) => setSort(event.target.value)}>
-              <option value="default">{copy.defaultSort}</option>
-              <option value="alpha">{copy.alpha}</option>
-              <option value="type">{copy.typeSort}</option>
-              <option value="updated">{language === 'zh' ? '最近更新' : 'Recently updated'}</option>
-            </select>
-          </div>
+          <Card>
+            <div className="linear-panel-title">{language === 'zh' ? '筛选' : 'Filters'}</div>
+            <SearchToolbar>
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} />
+            </SearchToolbar>
+            <div className="linear-filter-stack">
+              <select value={status} onChange={(event) => setStatus(event.target.value)}>
+                <option value="">{copy.allStatus}</option>
+                <option value="pending">{common.pending}</option>
+                <option value="planned">{common.planned}</option>
+                <option value="done">{common.published}</option>
+              </select>
+              <select value={type} onChange={(event) => setType(event.target.value)}>
+                <option value="">{copy.allTypes}</option>
+                {Object.entries(copy.typeLabels).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              <select value={sort} onChange={(event) => setSort(event.target.value)}>
+                <option value="default">{copy.defaultSort}</option>
+                <option value="alpha">{copy.alpha}</option>
+                <option value="type">{copy.typeSort}</option>
+                <option value="updated">{language === 'zh' ? '最近更新' : 'Recently updated'}</option>
+              </select>
+            </div>
+          </Card>
 
-          <div className="linear-panel-title">{language === 'zh' ? '概览' : 'Overview'}</div>
-          <div className="linear-metric-list">
-            <div><span>{language === 'zh' ? '总计' : 'Total'}</span><strong>{metrics.all}</strong></div>
-            <div><span>{common.pending}</span><strong>{metrics.pending}</strong></div>
-            <div><span>{common.planned}</span><strong>{metrics.planned}</strong></div>
-            <div><span>{common.published}</span><strong>{metrics.done}</strong></div>
-          </div>
+          <Card>
+            <div className="linear-panel-title">{language === 'zh' ? '概览' : 'Overview'}</div>
+            <div className="linear-metric-list">
+              <div><span>{language === 'zh' ? '总计' : 'Total'}</span><strong>{metrics.all}</strong></div>
+              <div><span>{common.pending}</span><strong>{metrics.pending}</strong></div>
+              <div><span>{common.planned}</span><strong>{metrics.planned}</strong></div>
+              <div><span>{common.published}</span><strong>{metrics.done}</strong></div>
+            </div>
+          </Card>
         </section>
 
         <section className="linear-main">
@@ -282,7 +298,14 @@ export function KeywordsPage() {
               </thead>
               <tbody>
                 {!filtered.length ? (
-                  <tr><td colSpan={8}><div className="empty">{copy.empty}</div></td></tr>
+                  <tr>
+                    <td colSpan={8}>
+                      <EmptyState
+                        title={language === 'zh' ? '还没有关键词' : 'No keywords yet'}
+                        description={copy.empty}
+                      />
+                    </td>
+                  </tr>
                 ) : filtered.map((item) => (
                   <tr
                     key={item.id}
@@ -324,7 +347,9 @@ export function KeywordsPage() {
                         value={item.priority}
                         onChange={(event) => patchItem(item.id, { priority: event.target.value as KeywordPriority })}
                       >
-                        {Object.entries(copy.priorityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        {Object.entries(copy.priorityLabels).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
                       </select>
                     </td>
                     <td>{item.position || '-'}</td>
@@ -348,53 +373,55 @@ export function KeywordsPage() {
 
         <section className="linear-right">
           {!selected ? (
-            <div className="empty-state">{language === 'zh' ? '选择一条关键词查看详情' : 'Select a keyword to inspect details'}</div>
+            <EmptyState
+              title={language === 'zh' ? '还没有选中关键词' : 'No keyword selected'}
+              description={language === 'zh' ? '选择一条关键词查看详情。' : 'Select a keyword to inspect details.'}
+            />
           ) : (
-            <div className="linear-inspector">
+            <Card className="linear-inspector">
               <div className="linear-panel-title">{language === 'zh' ? '检查器' : 'Inspector'}</div>
               <div className="linear-inspector-grid">
-                <div className="field-block">
-                  <label>{copy.keyword}</label>
+                <Field label={copy.keyword}>
                   <input value={inspector.keyword} onChange={(event) => setInspector({ ...inspector, keyword: event.target.value })} />
-                </div>
-                <div className="field-block">
-                  <label>{copy.type}</label>
+                </Field>
+                <Field label={copy.type}>
                   <select value={inspector.type} onChange={(event) => setInspector({ ...inspector, type: event.target.value as KeywordType })}>
-                    {Object.entries(copy.typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    {Object.entries(copy.typeLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </select>
-                </div>
-                <div className="field-block">
-                  <label>{copy.priority}</label>
+                </Field>
+                <Field label={copy.priority}>
                   <select value={inspector.priority} onChange={(event) => setInspector({ ...inspector, priority: event.target.value as KeywordPriority })}>
-                    {Object.entries(copy.priorityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    {Object.entries(copy.priorityLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </select>
-                </div>
-                <div className="field-block">
-                  <label>{copy.table[2]}</label>
+                </Field>
+                <Field label={copy.table[2]}>
                   <select value={inspector.status} onChange={(event) => setInspector({ ...inspector, status: event.target.value as KeywordStatus })}>
                     <option value="pending">{common.pending}</option>
                     <option value="planned">{common.planned}</option>
                     <option value="done">{common.published}</option>
                   </select>
-                </div>
-                <div className="field-block">
-                  <label>{copy.table[4]}</label>
+                </Field>
+                <Field label={copy.table[4]}>
                   <input value={inspector.related_article} onChange={(event) => setInspector({ ...inspector, related_article: event.target.value })} />
-                </div>
-                <div className="field-block">
-                  <label>{copy.table[5]}</label>
+                </Field>
+                <Field label={copy.table[5]}>
                   <input value={inspector.position} onChange={(event) => setInspector({ ...inspector, position: event.target.value })} />
-                </div>
-                <div className="field-block">
-                  <label>{copy.notes}</label>
-                  <textarea rows={8} value={inspector.notes} onChange={(event) => setInspector({ ...inspector, notes: event.target.value })}></textarea>
-                </div>
+                </Field>
+                <Field label={copy.notes}>
+                  <textarea rows={8} value={inspector.notes} onChange={(event) => setInspector({ ...inspector, notes: event.target.value })} />
+                </Field>
               </div>
               <div className="linear-inspector-actions">
                 <button className="btn btn-sm" data-testid="keywords.remove-button" onClick={removeSelected}>{common.remove}</button>
-                <button className="btn btn-primary btn-sm" data-testid="keywords.save-button" onClick={saveInspector} disabled={!dirty || saving}>{saving ? common.generating : common.save}</button>
+                <button className="btn btn-primary btn-sm" data-testid="keywords.save-button" onClick={saveInspector} disabled={!dirty || saving}>
+                  {saving ? common.generating : common.save}
+                </button>
               </div>
-            </div>
+            </Card>
           )}
         </section>
       </div>

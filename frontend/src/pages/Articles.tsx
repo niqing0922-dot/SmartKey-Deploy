@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { articlesApi, keywordsApi } from '@/services/api'
+import { Card } from '@/components/ui/Card'
+import { Field } from '@/components/ui/Field'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { SearchToolbar } from '@/components/ui/SearchToolbar'
+import { EmptyState } from '@/components/ui/States'
 import { useI18n } from '@/i18n/useI18n'
 import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
+import { articlesApi, keywordsApi } from '@/services/api'
 import type { ArticleItem, ArticleStatus, KeywordItem } from '@/types'
 
 const emptyForm: { title: string; content: string; status: ArticleStatus; keyword_ids: string[] } = {
@@ -178,53 +183,65 @@ export function ArticlesPage() {
 
   return (
     <div id="page-articles" className="page page-active">
-      <div className="page-header linear-page-header">
-        <div>
-          <div className="page-title">{copy.title}</div>
-          <div className="page-desc">{copy.desc}</div>
-        </div>
-        <div className="linear-header-meta">
-          <span>⌘K</span>
-          <span>J / K</span>
-          <button className="btn btn-xs" onClick={() => navigate('/articles/geo-writer')}>{copy.writer}</button>
-          <button className="btn btn-xs" onClick={() => navigate('/articles/image-planner')}>{copy.imagePlanner}</button>
-        </div>
-      </div>
+      <PageHeader
+        title={copy.title}
+        description={copy.desc}
+        actions={
+          <div className="linear-header-meta">
+            <span>{language === 'zh' ? '键盘导航' : 'Keyboard navigation'}</span>
+            <span>J / K</span>
+            <button className="btn btn-xs" onClick={() => navigate('/articles/geo-writer')}>{copy.writer}</button>
+            <button className="btn btn-xs" onClick={() => navigate('/articles/image-planner')}>{copy.imagePlanner}</button>
+          </div>
+        }
+      />
 
       <div className="page-body linear-workbench">
         <section className="linear-left">
-          <div className="linear-panel-title">{language === 'zh' ? '快速创建' : 'Quick Create'}</div>
-          <div className="linear-inline-create">
-            <input
-              data-testid="articles.quick-input"
-              value={quickTitle}
-              onChange={(event) => setQuickTitle(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') onCreate()
-              }}
-              placeholder={copy.articleTitle}
-            />
-            <button className="btn btn-primary btn-sm" data-testid="articles.create-button" onClick={onCreate} disabled={creating}>
-              {copy.manual}
-            </button>
-          </div>
+          <Card>
+            <div className="linear-panel-title">{language === 'zh' ? '快速创建' : 'Quick Create'}</div>
+            <div className="linear-inline-create">
+              <input
+                data-testid="articles.quick-input"
+                value={quickTitle}
+                onChange={(event) => setQuickTitle(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') onCreate()
+                }}
+                placeholder={copy.articleTitle}
+              />
+              <button className="btn btn-primary btn-sm" data-testid="articles.create-button" onClick={onCreate} disabled={creating}>
+                {copy.manual}
+              </button>
+            </div>
+          </Card>
 
-          <div className="linear-panel-title">{language === 'zh' ? '筛选' : 'Filters'}</div>
-          <div className="linear-filter-stack">
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={language === 'zh' ? '搜索标题或正文' : 'Search title or content'} />
-            <select value={status} onChange={(event) => setStatus(event.target.value as ArticleStatus | '')}>
-              <option value="">{language === 'zh' ? '全部状态' : 'All status'}</option>
-              <option value="draft">{common.draft}</option>
-              <option value="published">{common.published}</option>
-            </select>
-          </div>
+          <Card>
+            <div className="linear-panel-title">{language === 'zh' ? '筛选' : 'Filters'}</div>
+            <SearchToolbar>
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={language === 'zh' ? '搜索标题或正文' : 'Search title or content'}
+              />
+            </SearchToolbar>
+            <div className="linear-filter-stack">
+              <select value={status} onChange={(event) => setStatus(event.target.value as ArticleStatus | '')}>
+                <option value="">{language === 'zh' ? '全部状态' : 'All status'}</option>
+                <option value="draft">{common.draft}</option>
+                <option value="published">{common.published}</option>
+              </select>
+            </div>
+          </Card>
 
-          <div className="linear-panel-title">{language === 'zh' ? '概览' : 'Overview'}</div>
-          <div className="linear-metric-list">
-            <div><span>{language === 'zh' ? '总计' : 'Total'}</span><strong>{metrics.total}</strong></div>
-            <div><span>{common.draft}</span><strong>{metrics.draft}</strong></div>
-            <div><span>{common.published}</span><strong>{metrics.published}</strong></div>
-          </div>
+          <Card>
+            <div className="linear-panel-title">{language === 'zh' ? '概览' : 'Overview'}</div>
+            <div className="linear-metric-list">
+              <div><span>{language === 'zh' ? '总计' : 'Total'}</span><strong>{metrics.total}</strong></div>
+              <div><span>{common.draft}</span><strong>{metrics.draft}</strong></div>
+              <div><span>{common.published}</span><strong>{metrics.published}</strong></div>
+            </div>
+          </Card>
         </section>
 
         <section className="linear-main">
@@ -242,7 +259,14 @@ export function ArticlesPage() {
               </thead>
               <tbody>
                 {!filtered.length ? (
-                  <tr><td colSpan={6}><div className="empty">{copy.empty}</div></td></tr>
+                  <tr>
+                    <td colSpan={6}>
+                      <EmptyState
+                        title={language === 'zh' ? '还没有文章' : 'No articles yet'}
+                        description={copy.empty}
+                      />
+                    </td>
+                  </tr>
                 ) : filtered.map((item) => (
                   <tr
                     key={item.id}
@@ -286,24 +310,24 @@ export function ArticlesPage() {
 
         <section className="linear-right">
           {!selected ? (
-            <div className="empty-state">{language === 'zh' ? '选择一篇文章查看详情' : 'Select an article to inspect details'}</div>
+            <EmptyState
+              title={language === 'zh' ? '还没有选中文章' : 'No article selected'}
+              description={language === 'zh' ? '选择一篇文章查看详情。' : 'Select an article to inspect details.'}
+            />
           ) : (
-            <div className="linear-inspector">
+            <Card className="linear-inspector">
               <div className="linear-panel-title">{language === 'zh' ? '检查器' : 'Inspector'}</div>
               <div className="linear-inspector-grid">
-                <div className="field-block">
-                  <label>{copy.articleTitle}</label>
+                <Field label={copy.articleTitle}>
                   <input value={inspector.title} onChange={(event) => setInspector({ ...inspector, title: event.target.value })} />
-                </div>
-                <div className="field-block">
-                  <label>{copy.status}</label>
+                </Field>
+                <Field label={copy.status}>
                   <select value={inspector.status} onChange={(event) => setInspector({ ...inspector, status: event.target.value as ArticleStatus })}>
                     <option value="draft">{common.draft}</option>
                     <option value="published">{common.published}</option>
                   </select>
-                </div>
-                <div className="field-block">
-                  <label>{copy.related}</label>
+                </Field>
+                <Field label={copy.related}>
                   <input
                     value={keywordInput}
                     onChange={(event) => {
@@ -312,11 +336,10 @@ export function ArticlesPage() {
                     }}
                     placeholder={copy.relatedPlaceholder}
                   />
-                </div>
-                <div className="field-block">
-                  <label>{copy.content}</label>
-                  <textarea rows={14} value={inspector.content} onChange={(event) => setInspector({ ...inspector, content: event.target.value })}></textarea>
-                </div>
+                </Field>
+                <Field label={copy.content}>
+                  <textarea rows={14} value={inspector.content} onChange={(event) => setInspector({ ...inspector, content: event.target.value })} />
+                </Field>
                 {inspector.keyword_ids.length ? (
                   <div className="tag-row">
                     {inspector.keyword_ids.map((id) => <span key={id} className="a-chip">{keywordMap.get(id) || id}</span>)}
@@ -325,9 +348,11 @@ export function ArticlesPage() {
               </div>
               <div className="linear-inspector-actions">
                 <button className="btn btn-sm" data-testid="articles.remove-button" onClick={removeSelected}>{common.remove}</button>
-                <button className="btn btn-primary btn-sm" data-testid="articles.save-button" onClick={saveInspector} disabled={!dirty || saving}>{saving ? common.generating : common.save}</button>
+                <button className="btn btn-primary btn-sm" data-testid="articles.save-button" onClick={saveInspector} disabled={!dirty || saving}>
+                  {saving ? common.generating : common.save}
+                </button>
               </div>
-            </div>
+            </Card>
           )}
         </section>
       </div>
