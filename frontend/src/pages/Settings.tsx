@@ -96,6 +96,8 @@ type AiProviderMeta = {
   enabledField: AiEnabledKey
 }
 
+type SettingsSection = 'defaults' | 'ai' | 'seo' | 'indexing'
+
 const AI_PROVIDERS: AiProviderMeta[] = [
   { id: 'gemini', label: 'Google Gemini', keyField: 'gemini_api_key', configuredField: 'gemini_api_key_configured', enabledField: 'gemini_enabled' },
   { id: 'minimax', label: 'MiniMax', keyField: 'minimax_api_key', configuredField: 'minimax_api_key_configured', enabledField: 'minimax_enabled' },
@@ -130,6 +132,7 @@ export function SettingsPage() {
   const [expandedGuide, setExpandedGuide] = useState<Record<string, boolean>>({})
   const [lastEnabledAiProvider, setLastEnabledAiProvider] = useState<AIProvider | undefined>('minimax')
   const [focusSection, setFocusSection] = useState('')
+  const [activeSection, setActiveSection] = useState<SettingsSection>('defaults')
 
   const loadSettings = async () => {
     const data = await settingsApi.get()
@@ -146,7 +149,12 @@ export function SettingsPage() {
   useEffect(() => {
     const draft = consumeWorkbenchTaskDraft('settings')
     if (!draft?.prefill) return
-    if (typeof draft.prefill.section === 'string') setFocusSection(draft.prefill.section)
+    if (typeof draft.prefill.section === 'string') {
+      setFocusSection(draft.prefill.section)
+      if (['defaults', 'ai', 'seo', 'indexing'].includes(draft.prefill.section)) {
+        setActiveSection(draft.prefill.section as SettingsSection)
+      }
+    }
   }, [])
 
   const setPartial = (patch: Partial<SettingsItem>) => {
@@ -205,6 +213,42 @@ export function SettingsPage() {
   }
 
   const aiWarningLabels = enabledButUnconfiguredAi.map((id) => AI_LABEL[id]).join(' / ')
+  const sectionItems: Array<{
+    id: SettingsSection
+    label: string
+    desc: string
+    state: 'ready' | 'warn' | 'muted'
+    meta: string
+  }> = [
+    {
+      id: 'defaults',
+      label: language === 'zh' ? '默认偏好' : 'Defaults',
+      desc: language === 'zh' ? '语言、市场、文章参数' : 'Language, market, article defaults',
+      state: 'ready',
+      meta: language === 'zh' ? '基础' : 'Base',
+    },
+    {
+      id: 'ai',
+      label: language === 'zh' ? 'AI 供应商' : 'AI Providers',
+      desc: language === 'zh' ? '模型启用与 API Key' : 'Models and API keys',
+      state: activeAiProvider ? 'ready' : enabledButUnconfiguredAi.length ? 'warn' : 'muted',
+      meta: activeAiProvider ? AI_LABEL[activeAiProvider] : language === 'zh' ? '未启用' : 'None',
+    },
+    {
+      id: 'seo',
+      label: language === 'zh' ? 'SEO / Rank' : 'SEO / Rank',
+      desc: language === 'zh' ? 'SerpAPI 与目标域名' : 'SerpAPI and target domain',
+      state: rankReady ? 'ready' : 'warn',
+      meta: rankReady ? 'OK' : language === 'zh' ? '待配置' : 'Setup',
+    },
+    {
+      id: 'indexing',
+      label: language === 'zh' ? 'Indexing / 本地' : 'Indexing / Local',
+      desc: language === 'zh' ? 'Google 凭证与 Python 路径' : 'Google credentials and Python path',
+      state: indexingConfigured ? 'ready' : 'muted',
+      meta: indexingConfigured ? (language === 'zh' ? '凭证可用' : 'Ready') : (language === 'zh' ? '可选' : 'Optional'),
+    },
+  ]
 
   return (
     <div id="page-settings" className="page page-active">
@@ -240,6 +284,23 @@ export function SettingsPage() {
               <strong>{isDirty ? (language === 'zh' ? '有' : 'Yes') : (language === 'zh' ? '无' : 'No')}</strong>
             </div>
           </div>
+          <div className="settings-section-nav">
+            <div className="linear-panel-title">{language === 'zh' ? '配置分区' : 'Sections'}</div>
+            {sectionItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`settings-section-button ${activeSection === item.id ? 'active' : ''}`}
+                onClick={() => setActiveSection(item.id)}
+              >
+                <span className="settings-section-copy">
+                  <strong>{item.label}</strong>
+                  <small>{item.desc}</small>
+                </span>
+                <span className={`status-chip ${item.state}`}>{item.meta}</span>
+              </button>
+            ))}
+          </div>
         </section>
 
         <section className="linear-main settings-main-panel">
@@ -257,7 +318,7 @@ export function SettingsPage() {
             </span>
           </div>
 
-          {message ? <div className="alert alert-success">{message}</div> : null}
+          {message ? <div className="alert alert-success" data-testid="settings-save-success">{message}</div> : null}
 
           {enabledButUnconfiguredAi.length > 0 ? (
             <div className="alert alert-warn">
@@ -265,6 +326,7 @@ export function SettingsPage() {
             </div>
           ) : null}
 
+          {activeSection === 'defaults' ? (
           <div className="settings-provider-group">
             <div className="settings-group-head">
               <div className="linear-panel-title">{language === 'zh' ? '默认偏好' : 'Default Preference'}</div>
@@ -299,7 +361,9 @@ export function SettingsPage() {
               </div>
             </div>
           </div>
+          ) : null}
 
+          {activeSection === 'ai' ? (
           <div className={`settings-provider-group ${focusSection === 'ai' ? 'settings-ai-focus' : ''}`}>
             <div className="settings-group-head">
               <div className="linear-panel-title">{language === 'zh' ? 'AI 供应商' : 'AI Providers'}</div>
@@ -379,7 +443,9 @@ export function SettingsPage() {
               })}
             </div>
           </div>
+          ) : null}
 
+          {activeSection === 'seo' ? (
           <div className={`settings-provider-group ${focusSection === 'seo' ? 'settings-ai-focus' : ''}`}>
             <div className="settings-group-head">
               <div className="linear-panel-title">SEO（SerpAPI）</div>
@@ -457,7 +523,9 @@ export function SettingsPage() {
               ) : null}
             </div>
           </div>
+          ) : null}
 
+          {activeSection === 'indexing' ? (
           <div className={`settings-provider-group ${focusSection === 'indexing' ? 'settings-ai-focus' : ''}`}>
             <div className="settings-group-head">
               <div className="linear-panel-title">{language === 'zh' ? '本地默认与 Indexing' : 'Local Defaults & Indexing'}</div>
@@ -530,6 +598,7 @@ export function SettingsPage() {
               </div>
             </div>
           </div>
+          ) : null}
         </section>
 
         <section className="linear-right">

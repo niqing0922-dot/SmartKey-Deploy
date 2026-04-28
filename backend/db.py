@@ -148,23 +148,9 @@ def normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def public_settings(settings: dict[str, Any]) -> dict[str, Any]:
-    safe = {**settings}
-    for key in SENSITIVE_SETTINGS_KEYS:
-        safe[key] = ""
-    safe["gemini_api_key_configured"] = bool(settings.get("gemini_api_key"))
-    safe["minimax_api_key_configured"] = bool(settings.get("minimax_api_key"))
-    safe["openai_api_key_configured"] = bool(settings.get("openai_api_key"))
-    safe["anthropic_api_key_configured"] = bool(settings.get("anthropic_api_key"))
-    safe["deepseek_api_key_configured"] = bool(settings.get("deepseek_api_key"))
-    safe["qwen_api_key_configured"] = bool(settings.get("qwen_api_key"))
-    safe["moonshot_api_key_configured"] = bool(settings.get("moonshot_api_key"))
-    safe["grok_api_key_configured"] = bool(settings.get("grok_api_key"))
-    safe["cohere_api_key_configured"] = bool(settings.get("cohere_api_key"))
-    safe["serpapi_key_configured"] = bool(settings.get("serpapi_key"))
-    safe["dataforseo_api_login_configured"] = bool(settings.get("dataforseo_api_login"))
-    safe["dataforseo_api_password_configured"] = bool(settings.get("dataforseo_api_password"))
-    safe["google_credentials_path_configured"] = bool(settings.get("google_credentials_path"))
-    return safe
+    from backend.repositories.settings import public_settings as repo_public_settings
+
+    return repo_public_settings(settings)
 
 
 @lru_cache(maxsize=None)
@@ -305,158 +291,63 @@ def init_db() -> None:
 
 
 def list_keywords(filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    filters = filters or {}
-    where = []
-    params: list[Any] = []
-    for key in ("status", "type", "priority"):
-        value = filters.get(key)
-        if value and value != "all":
-            where.append(f"{key} = ?")
-            params.append(value)
-    if filters.get("search"):
-        where.append("keyword LIKE ?")
-        params.append(f"%{filters['search']}%")
-    clause = f"WHERE {' AND '.join(where)}" if where else ""
-    with connect() as conn:
-        rows = conn.execute(f"SELECT * FROM keywords {clause} ORDER BY created_at DESC", params).fetchall()
-    return [dict(row) for row in rows]
+    from backend.repositories.keywords import list_keywords as repo_list_keywords
+
+    return repo_list_keywords(filters)
 
 
 def get_keyword(keyword_id: str) -> dict[str, Any] | None:
-    with connect() as conn:
-        row = conn.execute("SELECT * FROM keywords WHERE id = ?", (keyword_id,)).fetchone()
-    return dict(row) if row else None
+    from backend.repositories.keywords import get_keyword as repo_get_keyword
+
+    return repo_get_keyword(keyword_id)
 
 
 def create_keyword(payload: dict[str, Any]) -> dict[str, Any]:
-    record = {
-        "id": make_id(),
-        "user_id": LOCAL_USER_ID,
-        "keyword": payload["keyword"].strip(),
-        "type": payload.get("type") or "core",
-        "priority": payload.get("priority") or "medium",
-        "status": payload.get("status") or "pending",
-        "notes": payload.get("notes") or "",
-        "position": payload.get("position") or "",
-        "related_article": payload.get("related_article") or "",
-        "created_at": now_iso(),
-        "updated_at": now_iso(),
-    }
-    db_record = filter_record("keywords", record)
-    with connect() as conn:
-        columns = ", ".join(db_record.keys())
-        placeholders = ", ".join(f":{key}" for key in db_record.keys())
-        conn.execute(
-            f"INSERT INTO keywords ({columns}) VALUES ({placeholders})",
-            db_record,
-        )
-    return record
+    from backend.repositories.keywords import create_keyword as repo_create_keyword
+
+    return repo_create_keyword(payload)
 
 
 def update_keyword(keyword_id: str, payload: dict[str, Any]) -> dict[str, Any] | None:
-    current = get_keyword(keyword_id)
-    if not current:
-        return None
-    for key in ("keyword", "type", "priority", "status", "notes", "position", "related_article"):
-        if key in payload and payload[key] is not None:
-            current[key] = payload[key]
-    current["updated_at"] = now_iso()
-    with connect() as conn:
-        conn.execute(
-            "UPDATE keywords SET keyword=:keyword, type=:type, priority=:priority, status=:status, notes=:notes, position=:position, related_article=:related_article, updated_at=:updated_at WHERE id=:id",
-            current,
-        )
-    return current
+    from backend.repositories.keywords import update_keyword as repo_update_keyword
+
+    return repo_update_keyword(keyword_id, payload)
 
 
 def delete_keyword(keyword_id: str) -> None:
-    with connect() as conn:
-        conn.execute("DELETE FROM keywords WHERE id = ?", (keyword_id,))
+    from backend.repositories.keywords import delete_keyword as repo_delete_keyword
 
-
-def _map_article(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
-    item = dict(row)
-    keyword_ids_raw = item.pop("keyword_ids_json", item.pop("keyword_ids", "[]"))
-    item["keyword_ids"] = _loads(keyword_ids_raw, [])
-    return item
+    repo_delete_keyword(keyword_id)
 
 
 def list_articles() -> list[dict[str, Any]]:
-    with connect() as conn:
-        rows = conn.execute("SELECT * FROM articles ORDER BY updated_at DESC").fetchall()
-    return [_map_article(row) for row in rows]
+    from backend.repositories.articles import list_articles as repo_list_articles
+
+    return repo_list_articles()
 
 
 def get_article(article_id: str) -> dict[str, Any] | None:
-    with connect() as conn:
-        row = conn.execute("SELECT * FROM articles WHERE id = ?", (article_id,)).fetchone()
-    return _map_article(row) if row else None
+    from backend.repositories.articles import get_article as repo_get_article
+
+    return repo_get_article(article_id)
 
 
 def create_article(payload: dict[str, Any]) -> dict[str, Any]:
-    record = {
-        "id": make_id(),
-        "user_id": LOCAL_USER_ID,
-        "title": payload["title"].strip(),
-        "content": payload.get("content") or "",
-        "status": payload.get("status") or "draft",
-        "keyword_ids": payload.get("keyword_ids") or [],
-        "created_at": now_iso(),
-        "updated_at": now_iso(),
-    }
-    db_record = filter_record(
-        "articles",
-        {
-            "id": record["id"],
-            "user_id": record["user_id"],
-            "title": record["title"],
-            "content": record["content"],
-            "status": record["status"],
-            "keyword_ids_json": _dumps(record["keyword_ids"]),
-            "keyword_ids": _dumps(record["keyword_ids"]),
-            "created_at": record["created_at"],
-            "updated_at": record["updated_at"],
-        },
-    )
-    with connect() as conn:
-        columns = ", ".join(db_record.keys())
-        placeholders = ", ".join(f":{key}" for key in db_record.keys())
-        conn.execute(
-            f"INSERT INTO articles ({columns}) VALUES ({placeholders})",
-            db_record,
-        )
-    return record
+    from backend.repositories.articles import create_article as repo_create_article
+
+    return repo_create_article(payload)
 
 
 def update_article(article_id: str, payload: dict[str, Any]) -> dict[str, Any] | None:
-    current = get_article(article_id)
-    if not current:
-        return None
-    for key in ("title", "content", "status", "keyword_ids"):
-        if key in payload and payload[key] is not None:
-            current[key] = payload[key]
-    current["updated_at"] = now_iso()
-    db_patch = filter_record(
-        "articles",
-        {
-            "id": article_id,
-            "title": current["title"],
-            "content": current["content"],
-            "status": current["status"],
-            "keyword_ids_json": _dumps(current["keyword_ids"]),
-            "keyword_ids": _dumps(current["keyword_ids"]),
-            "updated_at": current["updated_at"],
-        },
-    )
-    with connect() as conn:
-        assignments = ", ".join(f"{key} = :{key}" for key in db_patch.keys() if key != "id")
-        conn.execute(f"UPDATE articles SET {assignments} WHERE id = :id", db_patch)
-    return current
+    from backend.repositories.articles import update_article as repo_update_article
+
+    return repo_update_article(article_id, payload)
 
 
 def delete_article(article_id: str) -> None:
-    with connect() as conn:
-        conn.execute("DELETE FROM articles WHERE id = ?", (article_id,))
+    from backend.repositories.articles import delete_article as repo_delete_article
+
+    repo_delete_article(article_id)
 
 
 def _map_geo_row(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
@@ -484,384 +375,75 @@ def _map_geo_row(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
 
 
 def list_geo_drafts() -> list[dict[str, Any]]:
-    with connect() as conn:
-        rows = conn.execute("SELECT * FROM geo_article_drafts ORDER BY updated_at DESC").fetchall()
-    return [_map_geo_row(row) for row in rows]
+    from backend.repositories.geo_drafts import list_geo_drafts as repo_list_geo_drafts
+
+    return repo_list_geo_drafts()
 
 
 def get_geo_draft(draft_id: str) -> dict[str, Any] | None:
-    with connect() as conn:
-        row = conn.execute("SELECT * FROM geo_article_drafts WHERE id = ?", (draft_id,)).fetchone()
-    return _map_geo_row(row) if row else None
+    from backend.repositories.geo_drafts import get_geo_draft as repo_get_geo_draft
+
+    return repo_get_geo_draft(draft_id)
 
 
 def save_geo_draft(payload: dict[str, Any]) -> dict[str, Any]:
-    timestamp = now_iso()
-    record = {
-        "id": payload.get("id") or make_id(),
-        "user_id": LOCAL_USER_ID,
-        "title": payload["title"],
-        "primary_keyword": payload["primary_keyword"],
-        "secondary_keywords_json": _dumps(payload.get("secondary_keywords", [])),
-        "secondary_keywords": _dumps(payload.get("secondary_keywords", [])),
-        "audience": payload.get("audience", ""),
-        "industry": payload.get("industry", ""),
-        "target_market": payload.get("target_market", ""),
-        "article_type": payload.get("article_type", ""),
-        "tone": payload.get("tone", ""),
-        "target_length": int(payload.get("target_length") or 1200),
-        "brief_json": _dumps(payload.get("brief", {})),
-        "seo_json": _dumps(
-            {
-                "title_options": payload.get("title_options", []),
-                "meta_title": payload.get("meta_title", ""),
-                "meta_description": payload.get("meta_description", ""),
-                "faq": payload.get("faq", []),
-                "suggestions": payload.get("suggestions", []),
-            }
-        ),
-        "title_options_json": _dumps(payload.get("title_options", [])),
-        "meta_title": payload.get("meta_title", ""),
-        "meta_description": payload.get("meta_description", ""),
-        "outline_json": _dumps(payload.get("outline", [])),
-        "article_json": _dumps({"draft_sections": payload.get("draft_sections", [])}),
-        "draft_sections_json": _dumps(payload.get("draft_sections", [])),
-        "faq_json": _dumps(payload.get("faq", [])),
-        "suggestions_json": _dumps(payload.get("suggestions", [])),
-        "provider": payload.get("provider", "system"),
-        "status": payload.get("status", "draft"),
-        "created_at": payload.get("created_at") or timestamp,
-        "updated_at": timestamp,
-    }
-    db_record = filter_record("geo_article_drafts", record)
-    with connect() as conn:
-        exists = conn.execute("SELECT id FROM geo_article_drafts WHERE id = ?", (record["id"],)).fetchone()
-        if exists:
-            assignments = ", ".join(f"{key}=:{key}" for key in db_record.keys() if key != "id")
-            conn.execute(
-                f"UPDATE geo_article_drafts SET {assignments} WHERE id=:id",
-                db_record,
-            )
-        else:
-            columns = ", ".join(db_record.keys())
-            placeholders = ", ".join(f":{key}" for key in db_record.keys())
-            conn.execute(
-                f"INSERT INTO geo_article_drafts ({columns}) VALUES ({placeholders})",
-                db_record,
-            )
-    return get_geo_draft(record["id"])  # type: ignore[return-value]
+    from backend.repositories.geo_drafts import save_geo_draft as repo_save_geo_draft
+
+    return repo_save_geo_draft(payload)
 
 
 def get_settings() -> dict[str, Any]:
-    with connect() as conn:
-        row = conn.execute("SELECT settings_json FROM app_settings LIMIT 1").fetchone()
-    return normalize_settings(_loads(row["settings_json"] if row else None, {}))
+    from backend.repositories.settings import get_settings as repo_get_settings
+
+    return repo_get_settings()
 
 
 def save_settings(patch: dict[str, Any]) -> dict[str, Any]:
-    last_enabled_ai_provider = patch.pop("last_enabled_ai_provider", None)
-    last_enabled_seo_provider = patch.pop("last_enabled_seo_provider", None)
-    current = get_settings()
-    for key, value in patch.items():
-        if key not in DEFAULT_SETTINGS:
-            continue
-        if key in SENSITIVE_SETTINGS_KEYS:
-            if value is None or (isinstance(value, str) and not value.strip()):
-                # Keep existing secret when UI sends empty placeholders.
-                continue
-        if key == "rank_target_domain":
-            value = normalize_domain(value if isinstance(value, str) else "")
-        current[key] = value
+    from backend.repositories.settings import save_settings as repo_save_settings
 
-    def normalize_single_enabled(
-        enabled_keys: list[str],
-        preferred_provider: str | None,
-        provider_to_key: dict[str, str],
-    ) -> None:
-        enabled_now = [key for key in enabled_keys if bool(current.get(key))]
-        if len(enabled_now) <= 1:
-            return
-        winner: str | None = None
-        preferred_key = provider_to_key.get(str(preferred_provider or "").lower())
-        if preferred_key and preferred_key in enabled_now:
-            winner = preferred_key
-        if winner is None:
-            for key, value in patch.items():
-                if key in enabled_keys and bool(value):
-                    winner = key
-        if winner is None:
-            winner = enabled_now[-1]
-        for key in enabled_keys:
-            current[key] = key == winner
-
-    normalize_single_enabled(AI_ENABLED_KEYS, last_enabled_ai_provider, AI_PROVIDER_TO_ENABLED_KEY)
-    normalize_single_enabled(SEO_ENABLED_KEYS, last_enabled_seo_provider, SEO_PROVIDER_TO_ENABLED_KEY)
-    with connect() as conn:
-        row = conn.execute("SELECT id FROM app_settings LIMIT 1").fetchone()
-        if row:
-            conn.execute("UPDATE app_settings SET settings_json = ?, updated_at = ? WHERE id = ?", (_dumps(current), now_iso(), row["id"]))
-        else:
-            record = filter_record(
-                "app_settings",
-                {
-                    "id": make_id(),
-                    "user_id": LOCAL_USER_ID,
-                    "settings_json": _dumps(current),
-                    "created_at": now_iso(),
-                    "updated_at": now_iso(),
-                },
-            )
-            columns = ", ".join(record.keys())
-            placeholders = ", ".join("?" for _ in record.keys())
-            conn.execute(f"INSERT INTO app_settings ({columns}) VALUES ({placeholders})", tuple(record.values()))
-    return current
+    return repo_save_settings(patch)
 
 
 def create_rank_job(payload: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
-    timestamp = now_iso()
-    record = {
-        "id": make_id(),
-        "domain": payload.get("domain", ""),
-        "provider": payload.get("provider", "serpapi"),
-        "source": payload.get("source", "manual"),
-        "status": "completed",
-        "params_json": _dumps(payload),
-        "summary_json": _dumps(result.get("summary", {})),
-        "started_at": result.get("started_at") or timestamp,
-        "finished_at": result.get("finished_at") or timestamp,
-        "created_at": timestamp,
-    }
-    with connect() as conn:
-        conn.execute(
-            """
-            INSERT INTO rank_jobs (id, domain, provider, source, status, params_json, summary_json, started_at, finished_at, created_at)
-            VALUES (:id, :domain, :provider, :source, :status, :params_json, :summary_json, :started_at, :finished_at, :created_at)
-            """,
-            record,
-        )
-        for item in result.get("results", []) or []:
-            conn.execute(
-                """
-                INSERT INTO rank_results (id, job_id, keyword, found, page, position, url, provider, error, queried_at, raw_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    make_id(),
-                    record["id"],
-                    str(item.get("keyword", "")),
-                    1 if bool(item.get("found")) else 0,
-                    item.get("page"),
-                    item.get("position"),
-                    str(item.get("url", "") or ""),
-                    str(item.get("provider", "") or ""),
-                    str(item.get("error", "") or ""),
-                    str(item.get("queried_at", "") or ""),
-                    _dumps(item),
-                    timestamp,
-                ),
-            )
-    return {
-        "id": record["id"],
-        "domain": record["domain"],
-        "provider": record["provider"],
-        "source": record["source"],
-        "status": record["status"],
-        "summary": _loads(record["summary_json"], {}),
-        "started_at": record["started_at"],
-        "finished_at": record["finished_at"],
-        "created_at": record["created_at"],
-    }
+    from backend.repositories.rank import create_rank_job as repo_create_rank_job
+
+    return repo_create_rank_job(payload, result)
 
 
 def list_rank_jobs(limit: int = 20) -> list[dict[str, Any]]:
-    with connect() as conn:
-        rows = conn.execute(
-            "SELECT * FROM rank_jobs ORDER BY created_at DESC LIMIT ?",
-            (max(1, int(limit)),),
-        ).fetchall()
-    jobs: list[dict[str, Any]] = []
-    for row in rows:
-        item = dict(row)
-        jobs.append(
-            {
-                "id": item["id"],
-                "domain": item["domain"],
-                "provider": item["provider"],
-                "source": item["source"],
-                "status": item["status"],
-                "summary": _loads(item.get("summary_json"), {}),
-                "params": _loads(item.get("params_json"), {}),
-                "started_at": item["started_at"],
-                "finished_at": item["finished_at"],
-                "created_at": item["created_at"],
-            }
-        )
-    return jobs
+    from backend.repositories.rank import list_rank_jobs as repo_list_rank_jobs
+
+    return repo_list_rank_jobs(limit)
 
 
 def get_rank_job(job_id: str) -> dict[str, Any] | None:
-    with connect() as conn:
-        row = conn.execute("SELECT * FROM rank_jobs WHERE id = ?", (job_id,)).fetchone()
-    if not row:
-        return None
-    item = dict(row)
-    return {
-        "id": item["id"],
-        "domain": item["domain"],
-        "provider": item["provider"],
-        "source": item["source"],
-        "status": item["status"],
-        "summary": _loads(item.get("summary_json"), {}),
-        "params": _loads(item.get("params_json"), {}),
-        "started_at": item["started_at"],
-        "finished_at": item["finished_at"],
-        "created_at": item["created_at"],
-    }
+    from backend.repositories.rank import get_rank_job as repo_get_rank_job
+
+    return repo_get_rank_job(job_id)
 
 
 def list_rank_results(job_id: str) -> list[dict[str, Any]]:
-    with connect() as conn:
-        rows = conn.execute(
-            "SELECT * FROM rank_results WHERE job_id = ? ORDER BY created_at ASC",
-            (job_id,),
-        ).fetchall()
-    results: list[dict[str, Any]] = []
-    for row in rows:
-        item = dict(row)
-        results.append(
-            {
-                "id": item["id"],
-                "job_id": item["job_id"],
-                "keyword": item["keyword"],
-                "found": bool(item["found"]),
-                "page": item["page"],
-                "position": item["position"],
-                "url": item["url"],
-                "provider": item["provider"],
-                "error": item["error"],
-                "queried_at": item["queried_at"],
-            }
-        )
-    return results
+    from backend.repositories.rank import list_rank_results as repo_list_rank_results
+
+    return repo_list_rank_results(job_id)
 
 
 def create_indexing_job(payload: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
-    timestamp = now_iso()
-    record = {
-        "id": make_id(),
-        "action": payload.get("action", "inspect"),
-        "site_url": payload.get("siteUrl", ""),
-        "status": "completed",
-        "params_json": _dumps(payload),
-        "summary_json": _dumps(result.get("summary", {})),
-        "started_at": result.get("started_at") or timestamp,
-        "finished_at": result.get("finished_at") or timestamp,
-        "created_at": timestamp,
-    }
-    with connect() as conn:
-        conn.execute(
-            """
-            INSERT INTO indexing_jobs (id, action, site_url, status, params_json, summary_json, started_at, finished_at, created_at)
-            VALUES (:id, :action, :site_url, :status, :params_json, :summary_json, :started_at, :finished_at, :created_at)
-            """,
-            record,
-        )
-        for item in result.get("pages", []) or []:
-            page_record = filter_record(
-                "indexing_pages",
-                {
-                    "id": make_id(),
-                    "job_id": record["id"],
-                    "user_id": LOCAL_USER_ID,
-                    "url": str(item.get("url", "")),
-                    "indexed": None if item.get("indexed") is None else (1 if bool(item.get("indexed")) else 0),
-                    "coverage": str(item.get("coverage", "") or ""),
-                    "indexing_state": str(item.get("indexing_state", "") or ""),
-                    "last_crawl": str(item.get("last_crawl", "") or ""),
-                    "success": None if item.get("success") is None else (1 if bool(item.get("success")) else 0),
-                    "submission_success": None if item.get("success") is None else (1 if bool(item.get("success")) else 0),
-                    "status_code": item.get("status_code"),
-                    "status_message": str(item.get("status_message", "") or ""),
-                    "error": str(item.get("error", "") or ""),
-                    "retry_count": item.get("retry_count"),
-                    "checked_at": str(item.get("checked_at", "") or item.get("timestamp", "") or ""),
-                    "raw_json": _dumps(item),
-                    "raw": _dumps(item),
-                    "created_at": timestamp,
-                },
-            )
-            columns = ", ".join(page_record.keys())
-            placeholders = ", ".join(f":{key}" for key in page_record.keys())
-            conn.execute(f"INSERT INTO indexing_pages ({columns}) VALUES ({placeholders})", page_record)
-    return {
-        "id": record["id"],
-        "action": record["action"],
-        "site_url": record["site_url"],
-        "status": record["status"],
-        "summary": _loads(record["summary_json"], {}),
-        "started_at": record["started_at"],
-        "finished_at": record["finished_at"],
-        "created_at": record["created_at"],
-    }
+    from backend.repositories.indexing import create_indexing_job as repo_create_indexing_job
+
+    return repo_create_indexing_job(payload, result)
 
 
 def list_indexing_jobs(limit: int = 20) -> list[dict[str, Any]]:
-    with connect() as conn:
-        rows = conn.execute(
-            "SELECT * FROM indexing_jobs ORDER BY created_at DESC LIMIT ?",
-            (max(1, int(limit)),),
-        ).fetchall()
-    jobs: list[dict[str, Any]] = []
-    for row in rows:
-        item = dict(row)
-        jobs.append(
-            {
-                "id": item["id"],
-                "action": item["action"],
-                "site_url": item["site_url"],
-                "status": item["status"],
-                "summary": _loads(item.get("summary_json"), {}),
-                "params": _loads(item.get("params_json"), {}),
-                "started_at": item["started_at"],
-                "finished_at": item["finished_at"],
-                "created_at": item["created_at"],
-            }
-        )
-    return jobs
+    from backend.repositories.indexing import list_indexing_jobs as repo_list_indexing_jobs
+
+    return repo_list_indexing_jobs(limit)
 
 
 def list_indexing_pages(job_id: str) -> list[dict[str, Any]]:
-    with connect() as conn:
-        rows = conn.execute(
-            "SELECT * FROM indexing_pages WHERE job_id = ? ORDER BY created_at ASC",
-            (job_id,),
-        ).fetchall()
-    pages: list[dict[str, Any]] = []
-    for row in rows:
-        item = dict(row)
-        indexed_value = item.get("indexed")
-        success_value = item.get("success")
-        if success_value is None and "submission_success" in item:
-            success_value = item.get("submission_success")
-        pages.append(
-            {
-                "id": item["id"],
-                "job_id": item["job_id"],
-                "url": item["url"],
-                "indexed": None if indexed_value is None else bool(indexed_value),
-                "coverage": item.get("coverage", ""),
-                "indexing_state": item.get("indexing_state", ""),
-                "last_crawl": item.get("last_crawl", ""),
-                # Legacy rows may not have submission-only columns.
-                "success": None if success_value is None else bool(success_value),
-                "status_code": item.get("status_code"),
-                "status_message": item.get("status_message", ""),
-                "error": item.get("error", ""),
-                "retry_count": item.get("retry_count"),
-                "checked_at": item.get("checked_at", ""),
-            }
-        )
-    return pages
+    from backend.repositories.indexing import list_indexing_pages as repo_list_indexing_pages
+
+    return repo_list_indexing_pages(job_id)
 
 
 def dashboard_stats() -> dict[str, Any]:
@@ -873,7 +455,9 @@ def dashboard_stats() -> dict[str, Any]:
     planned = len([item for item in keywords if item["status"] == "planned"])
     pending = len([item for item in keywords if item["status"] == "pending"])
     coverage = round((done / total) * 100) if total else 0
-    settings = get_settings()
+    from backend.repositories.settings import get_runtime_settings
+
+    settings = get_runtime_settings()
     ai_key_toggle_pairs = [
         ("gemini_api_key", "gemini_enabled"),
         ("minimax_api_key", "minimax_enabled"),

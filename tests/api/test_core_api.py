@@ -16,6 +16,40 @@ async def test_health_and_readiness(client):
   assert "readiness" in readiness.json()
 
 
+async def test_download_metadata_and_file_route(client, tmp_path, monkeypatch):
+  from backend.services import downloads
+
+  missing_zip = tmp_path / "missing.zip"
+  monkeypatch.setattr(downloads, "RELEASE_ZIP_PATH", missing_zip)
+
+  missing = await client.get("/api/downloads/latest")
+  assert missing.status_code == 200
+  missing_payload = missing.json()["download"]
+  assert missing_payload["available"] is False
+  assert missing_payload["filename"] == "SmartKey-portable.zip"
+  assert missing_payload["downloadUrl"] == "/downloads/SmartKey-portable.zip"
+
+  missing_file = await client.get("/downloads/SmartKey-portable.zip")
+  assert missing_file.status_code == 404
+  assert missing_file.json()["error"]["code"] == "download_not_found"
+
+  built_zip = tmp_path / "SmartKey-portable.zip"
+  built_zip.write_bytes(b"smartkey portable package")
+  monkeypatch.setattr(downloads, "RELEASE_ZIP_PATH", built_zip)
+
+  ready = await client.get("/api/downloads/latest")
+  assert ready.status_code == 200
+  ready_payload = ready.json()["download"]
+  assert ready_payload["available"] is True
+  assert ready_payload["sizeBytes"] == built_zip.stat().st_size
+  assert ready_payload["updatedAt"]
+
+  downloaded = await client.get("/downloads/SmartKey-portable.zip")
+  assert downloaded.status_code == 200
+  assert downloaded.content == b"smartkey portable package"
+  assert "SmartKey-portable.zip" in downloaded.headers["content-disposition"]
+
+
 async def test_settings_roundtrip(client):
   response = await client.get("/api/settings")
   assert response.status_code == 200
@@ -25,6 +59,22 @@ async def test_settings_roundtrip(client):
   saved = await client.post("/api/settings", json={"language": "en", "default_market": "US"})
   assert saved.status_code == 200
   assert saved.json()["settings"]["language"] == "en"
+
+
+async def test_settings_env_override_marks_configured(client, monkeypatch):
+  from backend.config import get_app_settings
+
+  monkeypatch.setenv("SMARTKEY_OPENAI_API_KEY", "env-openai-key")
+  get_app_settings.cache_clear()
+
+  response = await client.get("/api/settings")
+  assert response.status_code == 200
+  settings = response.json()["settings"]
+  assert settings["openai_api_key"] == ""
+  assert settings["openai_api_key_configured"] is True
+
+  monkeypatch.delenv("SMARTKEY_OPENAI_API_KEY", raising=False)
+  get_app_settings.cache_clear()
 
 
 async def test_keyword_and_article_crud(client):
@@ -137,3 +187,16 @@ async def test_diagnostics_runtime(client):
     "details": {"message": "sample"},
   })
   assert frontend_event.status_code == 200
+
+
+async def test_workbench_dispatch_supports_chinese_keywords(client):
+  response = await client.post("/api/workbench/dispatch", json={
+    "prompt": "帮我扩展10个工业路由器长尾词",
+    "current_route": "/",
+    "language": "zh",
+  })
+  assert response.status_code == 200
+  payload = response.json()
+  assert payload["intent"] == "keyword_expansion"
+  assert payload["target_route"] == "/keywords"
+  assert payload["prefill"]["type"] == "longtail"

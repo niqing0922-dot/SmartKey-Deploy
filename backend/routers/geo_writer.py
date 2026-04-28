@@ -5,9 +5,11 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from backend.db import create_article, get_geo_draft, get_settings, list_geo_drafts, save_geo_draft
 from backend.observability import api_error, api_ok, log_domain_event
-from backend.routers.ai import execute
+from backend.repositories.articles import create_article
+from backend.repositories.geo_drafts import get_geo_draft, list_geo_drafts, save_geo_draft
+from backend.repositories.settings import get_runtime_settings
+from backend.services.ai_service import execute
 from backend.services.geo_export import build_docx, build_markdown
 
 router = APIRouter(prefix="/api/geo-writer", tags=["geo-writer"])
@@ -45,7 +47,7 @@ def get_drafts(request: Request):
 async def create_draft(payload: GeoDraftRequest, request: Request):
     if not payload.primary_keyword.strip():
         api_error(status_code=400, code="invalid_input", message="Primary keyword is required.", request=request)
-    settings = get_settings()
+    settings = get_runtime_settings()
     effective: dict[str, Any] = payload.model_dump()
     effective["target_market"] = effective["target_market"] or settings["default_market"]
     effective["article_type"] = effective["article_type"] or settings["default_article_type"]

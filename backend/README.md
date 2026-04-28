@@ -1,6 +1,6 @@
 # SmartKey Backend
 
-The backend now uses local SQLite storage instead of Supabase.
+The active backend is the FastAPI local-first API. It uses SQLite as the source of truth and does not require login for local usage.
 
 ## Storage
 
@@ -10,29 +10,32 @@ The backend now uses local SQLite storage instead of Supabase.
 
 ## Setup
 
+Install Python dependencies from the repository root:
+
 ```bash
-cd backend
-npm install
+python -m pip install -r backend/requirements.txt
 ```
 
-Copy `.env.example` to `.env` and set at least:
+Optional integrations can be configured later in the app settings:
 
-- `JWT_SECRET`
-- `MINIMAX_API_KEY` if you want AI features
+- AI provider API keys, if you want AI features
+- SerpAPI, if you want ranking features
+- Google credentials, if you want indexing features
 
 ## Run
 
 ```bash
-npm run dev
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 3000 --reload
 ```
 
 Server default: `http://localhost:3000`
 
 ## Local capabilities
 
-- User registration and login
 - Keyword library
 - Articles
+- GEO writer drafts
+- Local data export, import, backup, and reset
 - Google ranking job history
 - Google indexing job history
 

@@ -87,28 +87,29 @@ frontend/src/
 ### Backend
 
 ```text
-backend/src/
-  routes/
-    keywords.js
-    articles.js
-    geoWriter.js
-    localData.js
-    settings.js
-    rank.js
-    indexing.js
+backend/
+  main.py
+  db.py
+  observability.py
+  routers/
+    dashboard.py
+    db.py
+    geo_writer.py
+    settings.py
+    ai.py
+    rank.py
+    indexing.py
+    diagnostics.py
+    workbench.py
   services/
-    keywordService.js
-    articleService.js
-    geoWriterService.js
-    settingsService.js
-    rankService.js
-    indexingService.js
-  lib/
-    db.js
-    storage.js
-    aiClient.js
-    pythonRunner.js
-  middleware/
+    geo_export.py
+    rank_core.py
+    rank_workbench.py
+    indexing_core.py
+    indexing_prepare.py
+  python/
+    run_rank_job.py
+    run_indexing_job.py
 ```
 
 ## 5. Frontend Design System
@@ -149,23 +150,19 @@ The UI should be rebuilt around a shared design-token layer modeled after the pr
 - soft gray backgrounds
 - consistent blue primary accent
 
-## 6. Authentication Removal Strategy
+## 6. Authentication Removal Status
 
-The product should move from token-gated local auth to implicit single-user local mode.
+The active product runs in implicit single-user local mode. The pre-rebuild Express/JWT backend has been moved to `archive/legacy-backend-express` for reference only.
 
-### Changes
+### Active requirements
 
-- remove login and register routes from the main app flow
-- remove `ProtectedRoute` from default navigation
-- stop redirecting to `/login` for local use
-- stop depending on `auth_token` for core routes
+- do not add login or register routes to the main app flow
+- do not add protected-route gating to default navigation
+- keep core routes independent of auth token storage
 
 ### Compatibility
 
-If retaining auth tables for legacy reasons:
-
-- backend may keep user records internally
-- frontend should no longer require user session setup before usage
+Legacy auth code may remain archived, but active frontend and backend implementation must not depend on it.
 
 ## 7. Data Model Direction
 

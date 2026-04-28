@@ -7,14 +7,14 @@ from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from backend.db import (
+from backend.observability import api_error, api_ok, log_domain_event
+from backend.repositories.rank import (
     create_rank_job,
     get_rank_job,
-    get_settings,
     list_rank_jobs,
     list_rank_results,
 )
-from backend.observability import api_error, api_ok, log_domain_event
+from backend.repositories.settings import get_runtime_settings
 from backend.services.rank_workbench import preview_rank_template, run_batch_template_tracking, run_single_keyword_tracking
 
 router = APIRouter(prefix="/api/rank", tags=["rank"])
@@ -56,7 +56,7 @@ def _require_rank_ready(settings: dict[str, Any], provider: str, request: Reques
 
 @router.get("/jobs")
 def get_rank_jobs(request: Request):
-    settings = get_settings()
+    settings = get_runtime_settings()
     jobs = list_rank_jobs(20)
     if not settings.get("serpapi_key") or not settings.get("serpapi_enabled"):
         return api_ok(request, status="configuration_required", items=jobs, message="Ranking requires enabled SerpAPI credentials in Settings.")
@@ -106,7 +106,7 @@ def download_rank_job_artifact(job_id: str, artifact_kind: Literal["xlsx", "csv"
 
 @router.post("/jobs/run")
 def run_rank_job(payload: RankRunPayload, request: Request):
-    settings = get_settings()
+    settings = get_runtime_settings()
     provider = payload.provider.lower().strip() or "serpapi"
     _require_rank_ready(settings, provider, request)
 

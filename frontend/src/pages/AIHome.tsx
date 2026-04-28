@@ -24,7 +24,7 @@ const WORKFLOW_CARDS = {
   zh: [
     {
       title: '先整理关键词库',
-      desc: '先把核心词、长尾词和场景词整理清楚，再推进后续写作和验证。',
+      desc: '把核心词、长尾词、场景词和竞品词整理清楚，再推进后续写作和验证。',
       href: '/keywords',
       meta: '适合搭建基础结构',
     },
@@ -44,7 +44,7 @@ const WORKFLOW_CARDS = {
   en: [
     {
       title: 'Start with the keyword library',
-      desc: 'Organize core, long-tail, and scenario terms before pushing writing and validation forward.',
+      desc: 'Organize core, long-tail, scenario, and competitor terms before writing and validation.',
       href: '/keywords',
       meta: 'Best for building the base',
     },
@@ -96,8 +96,8 @@ export function AIHomePage() {
           </h1>
           <p className="page-desc">
             {language === 'zh'
-              ? '这里不再堆叠额外工具，而是把建库、写作、验证三条主链路拆清楚，让每次进入都有明确起点。'
-              : 'This home page now favors clear workflows over extra tooling, so every session begins from an explicit path.'}
+              ? '这里是核心入口：先建库，再写作，最后验证收录与排名。每次进入都能从明确的下一步继续。'
+              : 'This is the core entry point: build the library, produce content, then validate indexing and rank.'}
           </p>
           <div className="ai-home-hero-actions">
             <Link to="/keywords" className="ai-home-primary-link">
@@ -114,7 +114,7 @@ export function AIHomePage() {
             <strong>{language === 'zh' ? '今天先推进哪一段？' : 'What should move first today?'}</strong>
             <span>
               {language === 'zh'
-                ? '建议先把“建库 -> 写作 -> 验证”跑通，再补可选模块。'
+                ? '建议先把“建库 -> 写作 -> 验证”跑通，再补充可选模块。'
                 : 'Move through library -> writing -> validation first, then add optional modules as needed.'}
             </span>
           </div>
@@ -152,7 +152,7 @@ export function AIHomePage() {
             </div>
             {!recentRoutes.length ? (
               <EmptyState
-                title={language === 'zh' ? '还没有跨页记录' : 'No recent pages yet'}
+                title={language === 'zh' ? '还没有跳转记录' : 'No recent pages yet'}
                 description={language === 'zh' ? '先从上面的三条主链路开始。' : 'Start from one of the three primary workflows above.'}
               />
             ) : (
@@ -173,8 +173,8 @@ export function AIHomePage() {
                 <div className="ai-home-section-title">{language === 'zh' ? '工作原则' : 'Working Principles'}</div>
                 <div className="ai-home-section-subtitle">
                   {language === 'zh'
-                    ? '把首页做成方向盘，而不是第二个工具堆。'
-                    : 'Make the home page a steering wheel, not another tool stack.'}
+                    ? '首页负责指路，具体操作留在对应模块里完成。'
+                    : 'The home page routes work; the modules handle the actual operations.'}
                 </div>
               </div>
             </div>
@@ -192,7 +192,7 @@ export function AIHomePage() {
                 <span>
                   {language === 'zh'
                     ? '内容生产集中在文章追踪和 GEO Writer，不在首页分散操作。'
-                    : 'Content production stays centered in article tracking and GEO Writer, not scattered across the home page.'}
+                    : 'Content production stays centered in article tracking and GEO Writer.'}
                 </span>
               </div>
               <div className="ai-home-principle">
@@ -200,7 +200,7 @@ export function AIHomePage() {
                 <span>
                   {language === 'zh'
                     ? 'Indexing、Rank 和本地数据放在后链路，帮助你把收尾做完整。'
-                    : 'Indexing, rank, and local data live later in the chain to help you finish the loop cleanly.'}
+                    : 'Indexing, rank, and local data finish the loop cleanly.'}
                 </span>
               </div>
             </div>

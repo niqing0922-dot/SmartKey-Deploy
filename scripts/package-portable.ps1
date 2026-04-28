@@ -1,13 +1,13 @@
 ﻿$ErrorActionPreference = 'Stop'
 
 $root = Resolve-Path "$PSScriptRoot\.."
-$distSource = Join-Path $root 'node_modules\electron\dist'
+$distSource = Join-Path $root 'desktop\node_modules\electron\dist'
 $releaseRoot = Join-Path $root 'release\SmartKey-portable'
 $appRoot = Join-Path $releaseRoot 'resources\app'
 $zipPath = Join-Path $root 'release\SmartKey-portable.zip'
 
 if (-not (Test-Path $distSource)) {
-  throw "Electron runtime not found at $distSource"
+  throw "Electron runtime not found at $distSource. Run npm --prefix desktop install before packaging."
 }
 
 if (Test-Path $releaseRoot) {

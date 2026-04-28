@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ApiErrorPayload, ArticleItem, DashboardStats, GeoDraftItem, ImagePlanItem, IndexingPrepareResult, KeywordItem, RankJobItem, RankResultItem, RankTemplatePreview, ReadinessStatus, RuntimeDiagnostics, SettingsItem, WorkspaceContext, WorkbenchDispatchRequest, WorkbenchDispatchResponse, WorkbenchExecuteRequest, WorkbenchExecuteResponse } from '@/types'
+import type { ApiErrorPayload, ArticleItem, DashboardStats, DownloadInfo, GeoDraftItem, ImagePlanItem, IndexingPrepareResult, KeywordItem, RankJobItem, RankResultItem, RankTemplatePreview, ReadinessStatus, RuntimeDiagnostics, SettingsItem, WorkspaceContext, WorkbenchDispatchRequest, WorkbenchDispatchResponse, WorkbenchExecuteRequest, WorkbenchExecuteResponse } from '@/types'
 
 type ApiEnvelope<T> = {
   status: string
@@ -74,6 +74,13 @@ export const dashboardApi = {
   async getStats() {
     const { data } = await api.get<ApiEnvelope<{ stats: DashboardStats }>>('/dashboard/stats')
     return data.stats
+  },
+}
+
+export const downloadsApi = {
+  async latest() {
+    const { data } = await api.get<ApiEnvelope<{ download: DownloadInfo }>>('/downloads/latest')
+    return data.download
   },
 }
 

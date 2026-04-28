@@ -7,12 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from backend.config import get_app_settings
 from backend.db import DB_PATH, init_db
 from backend.observability import api_ok, build_request_id, diagnostics_snapshot, log_domain_event, log_request
 from backend.routers.ai import router as ai_router
 from backend.routers.dashboard import router as dashboard_router
 from backend.routers.db import local_router, router as db_router
 from backend.routers.diagnostics import router as diagnostics_router
+from backend.routers.downloads import router as downloads_router
 from backend.routers.geo_writer import router as geo_writer_router
 from backend.routers.indexing import router as indexing_router
 from backend.routers.rank import router as rank_router
@@ -20,13 +22,14 @@ from backend.routers.settings import router as settings_router
 from backend.routers.workbench import router as workbench_router
 
 init_db()
+settings = get_app_settings()
 
 app = FastAPI(title="SmartKey API")
-app.state.app_version = "2.0.0"
+app.state.app_version = settings.app_version
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=settings.cors_origin_list or ["*"],
+    allow_credentials=settings.cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -118,6 +121,7 @@ app.include_router(rank_router)
 app.include_router(indexing_router)
 app.include_router(diagnostics_router)
 app.include_router(workbench_router)
+app.include_router(downloads_router)
 
 
 @app.get("/health")

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
-from backend.db import get_settings, public_settings, save_settings
 from backend.observability import api_ok, log_domain_event
+from backend.repositories.settings import get_runtime_settings, public_settings, save_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -48,12 +48,14 @@ class SettingsPayload(BaseModel):
 
 @router.get("")
 def read_settings(request: Request):
-    return api_ok(request, settings=public_settings(get_settings()))
+    runtime = get_runtime_settings()
+    return api_ok(request, settings=public_settings(runtime, runtime_settings=runtime))
 
 
 @router.post("")
 def write_settings(payload: SettingsPayload, request: Request):
     patch = payload.model_dump(exclude_none=True)
-    settings = save_settings(patch)
+    save_settings(patch)
+    runtime = get_runtime_settings()
     log_domain_event("settings.save", request=request, meta={"keys": sorted(patch.keys())})
-    return api_ok(request, settings=public_settings(settings))
+    return api_ok(request, settings=public_settings(runtime, runtime_settings=runtime))

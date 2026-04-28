@@ -7,7 +7,7 @@ This repository is now organized around a standard product workflow: app code, s
 - `frontend/`
   React + TypeScript + Vite application UI.
 - `backend/`
-  Express API, SQLite storage, auth, dashboard, AI, rank, indexing, and local-data routes.
+  FastAPI application, SQLite storage, dashboard, AI, rank, indexing, GEO writer, settings, and local-data routes.
 - `desktop/`
   Electron desktop shell that starts the backend and opens the app window.
 
@@ -46,6 +46,8 @@ These folders are product dependencies, but they are not the primary place for p
   Deprecated root-level entry files kept only for reference.
 - `archive/docs-legacy/`
   Historical deployment and old documentation artifacts.
+- `archive/legacy-backend-express/`
+  Pre-rebuild Express/JWT backend and Supabase schema kept only for reference.
 
 Anything inside `archive/` should be treated as read-only history unless there is a clear migration need.
 

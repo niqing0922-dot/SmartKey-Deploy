@@ -37,6 +37,16 @@ export interface ArticleItem {
   updated_at: string
 }
 
+export interface DownloadInfo {
+  available: boolean
+  version: string
+  platform: string
+  filename: string
+  sizeBytes: number
+  downloadUrl: string
+  updatedAt: string
+}
+
 export interface DraftSection {
   heading: string
   content: string

@@ -17,6 +17,7 @@ const contentLanguageOptions: Array<{ value: ContentLanguage; label: string }> =
 ]
 
 const defaultContentBlocks = ['table_of_contents', 'introduction', 'technical_sections', 'use_cases', 'faq']
+const targetLengthOptions = [600, 1000, 1500, 2500, 3500, 5000]
 
 const emptyForm = {
   title: '',
@@ -31,8 +32,6 @@ const emptyForm = {
   content_language: 'zh' as ContentLanguage,
   content_blocks: defaultContentBlocks,
 }
-
-const targetLengthOptions = [600, 1000, 1500, 2500, 3500, 5000]
 
 function ensureOutlineList(value: unknown) {
   if (Array.isArray(value)) return value
@@ -222,8 +221,7 @@ export function GeoWriterPage() {
       const blob = format === 'md'
         ? await geoWriterApi.exportMarkdown(selected.id)
         : await geoWriterApi.exportWord(selected.id)
-      const extension = format === 'md' ? 'md' : 'docx'
-      downloadBlob(blob, `${selected.title}.${extension}`)
+      downloadBlob(blob, `${selected.title}.${format}`)
       setMessage(format === 'md' ? copy.markdownExported : copy.wordExported)
     } catch (issue: any) {
       const detail = issue?.response?.data?.detail
@@ -384,17 +382,19 @@ export function GeoWriterPage() {
 
           <section className="linear-main geo-main-panel">
             {!selected ? (
-              <Card className="aw-output aw-output-empty">
-                <EmptyState
-                  title={language === 'zh' ? '还没有文章草稿' : 'No draft yet'}
-                  description={copy.emptyState}
-                />
-              </Card>
+              <div id="aw-output" className="aw-output aw-output-empty">
+                <Card>
+                  <EmptyState
+                    title={language === 'zh' ? '还没有文章草稿' : 'No draft yet'}
+                    description={copy.emptyState}
+                  />
+                </Card>
+              </div>
             ) : (
               <>
                 <div className="aiwrite-output-meta">
                   <div className="muted-text">
-                    {selected.provider} · {selected.target_length} · {getDraftLanguage(selected) || form.content_language.toUpperCase()}
+                    {selected.provider} / {selected.target_length} / {getDraftLanguage(selected) || form.content_language.toUpperCase()}
                   </div>
                   <div className="btn-group">
                     <button className="btn btn-sm" onClick={() => navigator.clipboard.writeText(JSON.stringify(selected, null, 2))}>
@@ -479,7 +479,7 @@ export function GeoWriterPage() {
                     onClick={() => setSelected(draft)}
                   >
                     <strong className="geo-history-title" title={draft.title}>{draft.title}</strong>
-                    <span className="muted-text">{draft.provider} · {new Date(draft.created_at).toLocaleString()}</span>
+                    <span className="muted-text">{draft.provider} / {new Date(draft.created_at).toLocaleString()}</span>
                   </button>
                 ))}
               </div>

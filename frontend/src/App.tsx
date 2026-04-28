@@ -14,12 +14,15 @@ import { ImportPage } from '@/pages/Import'
 import { MatrixPage } from '@/pages/Matrix'
 import { RankPage } from '@/pages/Rank'
 import { IndexingPage } from '@/pages/Indexing'
+import { ShowcasePage } from '@/pages/Showcase'
 
 export default function App() {
   return (
     <Routes>
+      <Route path="/showcase" element={<ShowcasePage />} />
       <Route path="/" element={<AppShell />}>
         <Route index element={<AIHomePage />} />
+        <Route path="home" element={<AIHomePage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="keywords" element={<KeywordsPage />} />
         <Route path="articles" element={<ArticlesPage />} />

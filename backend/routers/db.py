@@ -4,24 +4,28 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from backend.db import (
-    create_article,
     create_backup,
-    create_keyword,
-    delete_article,
-    delete_keyword,
     export_snapshot,
-    get_article,
-    get_keyword,
     import_snapshot,
-    list_articles,
     list_backups,
-    list_keywords,
     local_data_summary,
     reset_local_data,
-    update_article,
-    update_keyword,
 )
 from backend.observability import api_error, api_ok, log_domain_event
+from backend.repositories.articles import (
+    create_article,
+    delete_article,
+    get_article,
+    list_articles,
+    update_article,
+)
+from backend.repositories.keywords import (
+    create_keyword,
+    delete_keyword,
+    get_keyword,
+    list_keywords,
+    update_keyword,
+)
 
 router = APIRouter(prefix="/api/db", tags=["db"])
 local_router = APIRouter(prefix="/api/local-data", tags=["local-data"])

@@ -93,8 +93,10 @@ export function AppShell() {
   const language = useUiLanguage()
   const copy = messages[language].shell
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const defaultDarkMigrated = window.localStorage.getItem('smartkey.theme.defaultDark.v1') === '1'
     const stored = window.localStorage.getItem('smartkey.theme')
-    return stored === 'dark' ? 'dark' : 'light'
+    if (!defaultDarkMigrated) return 'dark'
+    return stored === 'light' ? 'light' : 'dark'
   })
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [counts, setCounts] = useState({ keywords: 0, articles: 0, rank: 0 })
@@ -105,6 +107,7 @@ export function AppShell() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     window.localStorage.setItem('smartkey.theme', theme)
+    window.localStorage.setItem('smartkey.theme.defaultDark.v1', '1')
   }, [theme])
 
   useEffect(() => {
@@ -175,7 +178,7 @@ export function AppShell() {
   const filteredQuickNavItems = useMemo(() => {
     const q = paletteQuery.trim().toLowerCase()
     if (!q) return quickNavItems
-    return quickNavItems.filter((item) => `${item.label} ${item.group}`.toLowerCase().includes(q))
+    return quickNavItems.filter((item) => `${item.label} ${item.group} ${item.to}`.toLowerCase().includes(q))
   }, [paletteQuery, quickNavItems])
 
   useEffect(() => {
@@ -239,7 +242,9 @@ export function AppShell() {
           ) : null}
           <button
             className={`sidebar-collapse-btn ${sidebarCollapsed ? 'is-collapsed-toggle' : ''}`}
+            data-testid="shell.sidebar-toggle"
             onClick={() => setSidebarCollapsed((prev) => !prev)}
+            aria-expanded={!sidebarCollapsed}
             aria-label={sidebarCollapsed ? (language === 'zh' ? '展开侧边栏' : 'Expand sidebar') : (language === 'zh' ? '折叠侧边栏' : 'Collapse sidebar')}
             title={sidebarCollapsed ? (language === 'zh' ? '展开侧边栏' : 'Expand sidebar') : (language === 'zh' ? '折叠侧边栏' : 'Collapse sidebar')}
           >
@@ -254,7 +259,15 @@ export function AppShell() {
             <div key={group.label}>
               <div className="nav-group-label">{group.label}</div>
               {group.items.map((item) => (
-                <NavLink key={item.to} to={item.to} end={item.to === '/'} data-testid={navTestId(item.to)} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === '/'}
+                  data-testid={navTestId(item.to)}
+                  aria-label={item.label}
+                  title={item.label}
+                  className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                >
                   {item.icon}
                   <span className="nav-item-label">{item.label}</span>
                   {item.badgeKey ? <span className="nav-badge">{counts[item.badgeKey]}</span> : null}

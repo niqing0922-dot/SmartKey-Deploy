@@ -8,11 +8,14 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from backend.db import create_indexing_job, get_settings, list_indexing_jobs, list_indexing_pages
+from backend.config import get_app_settings
 from backend.observability import api_error, api_ok, log_domain_event
+from backend.repositories.indexing import create_indexing_job, list_indexing_jobs, list_indexing_pages
+from backend.repositories.settings import get_runtime_settings
 from backend.services.indexing_prepare import prepare_search_console_export
 
 router = APIRouter(prefix="/api/indexing", tags=["indexing"])
+APP_SETTINGS = get_app_settings()
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INDEXING_RUNNER_PATH = REPO_ROOT / "backend" / "python" / "run_indexing_job.py"
@@ -95,7 +98,7 @@ def run_indexing_runner(payload: dict[str, Any], python_command: str) -> dict[st
         text=True,
         cwd=str(REPO_ROOT),
         capture_output=True,
-        timeout=900,
+        timeout=APP_SETTINGS.indexing_runner_timeout_seconds,
     )
     if completed.returncode != 0:
         raise RuntimeError((completed.stderr or completed.stdout or "Indexing runner failed").strip())
@@ -107,7 +110,7 @@ def run_indexing_runner(payload: dict[str, Any], python_command: str) -> dict[st
 
 @router.get("/jobs")
 def get_indexing_jobs(request: Request):
-    settings = get_settings()
+    settings = get_runtime_settings()
     jobs = list_indexing_jobs(20)
     credentials_path = str(settings.get("google_credentials_path") or "").strip()
     credentials_ready = bool(credentials_path) and Path(credentials_path).exists() and bool(settings.get("indexing_enabled"))
@@ -123,7 +126,7 @@ def get_indexing_job_pages(job_id: str, request: Request):
 
 @router.post("/jobs/run")
 def run_indexing_job(payload: IndexingRunPayload, request: Request):
-    settings = get_settings()
+    settings = get_runtime_settings()
     python_command = (settings.get("python_path") or "").strip() or sys.executable
     credentials_path = (
         payload.credentials_path.strip()

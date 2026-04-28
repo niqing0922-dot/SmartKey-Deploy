@@ -13,16 +13,16 @@
     "serve:test": "node ./tests/support/start-backend-test-server.mjs 3000",
     "build": "cd frontend && npm run build",
     "build:frontend": "cd frontend && npm run build",
-    "desktop": "npm run build:frontend && electron ./desktop/main.cjs",
+    "desktop": "npm run build:frontend && npm --prefix desktop run start",
     "package:portable": "npm run build:frontend && powershell -ExecutionPolicy Bypass -File ./scripts/package-portable.ps1",
     "smoke:portable": "powershell -ExecutionPolicy Bypass -File ./scripts/smoke-portable.ps1",
-    "package:win": "npm run build:frontend && electron-builder --win portable",
+    "package:win": "npm run build:frontend && npm --prefix desktop exec electron-builder -- --projectDir .. --win portable",
     "preview": "cd frontend && npm run preview",
     "test:e2e": "playwright test",
     "test:prod-smoke": "node ./tests/smoke/run-prod-smoke.mjs",
     "check:frontend": "npm --prefix frontend run typecheck",
     "check:frontend:lint": "npm --prefix frontend run lint",
-    "check:backend": "python -m compileall backend",
+    "check:backend": "python -m compileall backend/main.py backend/db.py backend/observability.py backend/routers backend/services backend/python",
     "check:api": "python -m pytest tests/api -q",
     "check:docs": "node ./tests/quality/docs-reality-check.mjs",
     "check:tokens": "node ./tests/quality/design-token-check.mjs",
@@ -37,8 +37,6 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "concurrently": "^9.2.1",
-    "electron-builder": "^26.0.12",
-    "electron": "^37.4.0",
     "playwright": "^1.59.1"
   },
   "build": {

@@ -4,8 +4,11 @@ from typing import Any
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
-from backend.db import create_keyword, dashboard_stats, get_settings, list_articles, list_keywords
+from backend.db import dashboard_stats
 from backend.observability import api_error, api_ok, log_domain_event
+from backend.repositories.articles import list_articles
+from backend.repositories.keywords import create_keyword, list_keywords
+from backend.repositories.settings import get_runtime_settings
 
 router = APIRouter(prefix="/api/workbench", tags=["workbench"])
 
@@ -77,6 +80,11 @@ LONGTAIL_MODIFIERS = [
 ]
 
 
+ZH_STOP_WORDS_PATTERN = (
+    r"(帮我|请|扩展|生成|添加|一批|条|个|长尾词|关键词|关键字|相关文章|列表|写一篇|写文章|草稿|分析|检查|提交|收录|配置|设置|打开)"
+)
+
+
 def _is_zh(language: str) -> bool:
     return language.lower().startswith("zh")
 
@@ -88,13 +96,13 @@ def _model_name(settings: dict[str, Any], language: str) -> str:
     default_provider = settings.get("default_ai_provider") or "minimax"
     if settings.get(f"{default_provider}_api_key"):
         return MODEL_NAMES.get(default_provider, default_provider)
-    return "未配置模型" if _is_zh(language) else "Model not configured"
+    return "模型未配置" if _is_zh(language) else "Model not configured"
 
 
 def _context_summary(current_route: str, language: str) -> dict[str, Any]:
     stats = dashboard_stats()
     articles = list_articles()
-    settings = get_settings()
+    settings = get_runtime_settings()
     return {
         "keyword_count": int(stats.get("keywords", {}).get("total") or 0),
         "article_count": len(articles),
@@ -119,11 +127,7 @@ def _extract_topic(prompt: str) -> str:
         cleaned,
         flags=re.IGNORECASE,
     )
-    cleaned = re.sub(
-        r"(帮我|请|扩展|生成|添加|个|条|长尾词|关键词|关键字|相关文章|列表|写一篇|文章|草稿|分析|检查|提交|收录|配置|设置|打开)",
-        " ",
-        cleaned,
-    )
+    cleaned = re.sub(ZH_STOP_WORDS_PATTERN, " ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.;:!?，。；：！？")
     return cleaned or "industrial router"
 
@@ -185,7 +189,7 @@ def _looks_like_analyze(prompt: str) -> bool:
 def _looks_like_article(prompt: str) -> bool:
     text = prompt.lower()
     return any(token in text for token in ("write an article", "product page", "blog post", "draft article")) or any(
-        token in prompt for token in ("写一篇", "文章", "产品页", "博客")
+        token in prompt for token in ("写一篇", "写文章", "文章", "产品页", "博客")
     )
 
 
@@ -214,8 +218,7 @@ def _first_url(prompt: str) -> str | None:
 
 
 def _keyword_from_prompt(prompt: str) -> str:
-    topic = _extract_topic(prompt)
-    return topic
+    return _extract_topic(prompt)
 
 
 def _dispatch_response(
@@ -327,7 +330,7 @@ def dispatch_workbench(payload: WorkbenchDispatchPayload, request: Request):
         )
 
     if _looks_like_recommend(prompt):
-        reply = "我会去关键词推荐页，并把主题先填进去。" if is_zh else "I'll open recommendations and prefill the topic."
+        reply = "我会打开关键词推荐页，并把主题先填进去。" if is_zh else "I'll open recommendations and prefill the topic."
         return _dispatch_response(
             request=request,
             intent="keyword_recommend",
@@ -455,7 +458,7 @@ def dispatch_workbench(payload: WorkbenchDispatchPayload, request: Request):
         )
 
     reply = (
-        "我先留在 AI 首页。你可以更具体一点，比如“帮我扩展 10 个 industrial router 长尾词”或“写一篇 WR143 产品页文章”。"
+        "我先留在首页。你可以更具体一点，比如“帮我扩展 10 个 industrial router 长尾词”或“写一篇 WR143 产品页文章”。"
         if is_zh
         else "I'll keep us on the AI home page for now. Try a more specific request like 'expand 10 industrial router long-tail keywords' or 'write a WR143 product page article'."
     )

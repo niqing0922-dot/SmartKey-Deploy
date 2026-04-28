@@ -11,6 +11,26 @@ const checks = [
     file: path.join('docs', 'ARCHITECTURE.md'),
     forbidden: [/Express API/i, /authentication and authorization/i, /local user registration and login/i],
   },
+  {
+    file: path.join('docs', 'PROJECT_STRUCTURE.md'),
+    forbidden: [/Express API/i, /auth,/i, /backend\/src/i],
+  },
+  {
+    file: 'TECH_DESIGN.md',
+    forbidden: [/backend\/src/i, /redirecting to `\/login`/i, /auth_token/i],
+  },
+  {
+    file: path.join('backend', 'README.md'),
+    forbidden: [/Express API/i, /User registration and login/i, /JWT_SECRET/i, /npm install/i],
+  },
+  {
+    file: path.join('backend', '.env.example'),
+    forbidden: [/JWT_SECRET/i, /JWT_EXPIRES/i, /auth_token/i],
+  },
+  {
+    file: path.join('tests', 'check-api-key.js'),
+    forbidden: [/\/login/i, /auth_token/i, /localStorage\.getItem\('user'\)/i],
+  },
 ]
 
 const failures = []

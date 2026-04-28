@@ -14,11 +14,23 @@ async function waitForHealth(url, attempts = 60) {
   throw new Error(`Server did not become ready at ${url}`)
 }
 
-const server = spawn('node', ['./tests/support/start-backend-test-server.mjs', '3000'], {
-  cwd: process.cwd(),
-  env: process.env,
-  stdio: 'inherit',
-})
+async function hasHealthyServer(url) {
+  try {
+    const response = await fetch(`${url}/api/health`)
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+let server
+if (!(await hasHealthyServer(baseUrl))) {
+  server = spawn('node', ['./tests/support/start-backend-test-server.mjs', '3000'], {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: 'inherit',
+  })
+}
 
 try {
   await waitForHealth(baseUrl)
@@ -32,5 +44,7 @@ try {
     process.exit(exitCode ?? 1)
   }
 } finally {
-  server.kill('SIGTERM')
+  if (server) {
+    server.kill('SIGTERM')
+  }
 }
