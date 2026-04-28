@@ -4,6 +4,7 @@ import { articlesApi, keywordsApi } from '@/services/api'
 import { setUiLanguage, useUiLanguage } from '@/hooks/useUiLanguage'
 import { messages } from '@/i18n/messages'
 import { recordRecentRoute } from '@/lib/workbenchDrafts'
+import { SmartKeyLogo } from '@/components/brand/SmartKeyLogo'
 
 type NavBadgeKey = 'keywords' | 'articles' | 'rank'
 type NavGroup = {
@@ -17,13 +18,7 @@ type NavGroup = {
 }
 
 function AppLogo() {
-  return (
-    <div className="sidebar-logo-icon">
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M5 4h10v3H8v2h6v3H8v2h7v3H5z" />
-      </svg>
-    </div>
-  )
+  return <SmartKeyLogo className="sidebar-logo-icon" compact />
 }
 
 function GridIcon() {
