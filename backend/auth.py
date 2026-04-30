@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
 import jwt
 from fastapi import Request
 
@@ -31,7 +32,20 @@ def decode_supabase_token(token: str, request: Request) -> dict[str, Any]:
             options={"verify_aud": False},
         )
     except jwt.PyJWTError:
-        api_error(status_code=401, code="invalid_token", message="Invalid or expired session.", request=request)
+        try:
+            response = httpx.get(
+                f"{settings.supabase_url.rstrip('/')}/auth/v1/user",
+                headers={
+                    "apikey": settings.supabase_anon_key,
+                    "authorization": f"Bearer {token}",
+                },
+                timeout=10,
+            )
+            response.raise_for_status()
+            user = response.json()
+            return {"sub": user.get("id"), "email": user.get("email", "")}
+        except Exception:
+            api_error(status_code=401, code="invalid_token", message="Invalid or expired session.", request=request)
 
 
 def get_bearer_token(request: Request) -> str:

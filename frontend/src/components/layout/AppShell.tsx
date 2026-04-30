@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthProvider'
 import { articlesApi, keywordsApi } from '@/services/api'
@@ -8,74 +9,71 @@ import { recordRecentRoute } from '@/lib/workbenchDrafts'
 import { SmartKeyLogo } from '@/components/brand/SmartKeyLogo'
 
 type NavBadgeKey = 'keywords' | 'articles' | 'rank'
-type NavGroup = {
-  label: string
-  items: Array<{
-    to: string
-    label: string
-    icon: any
-    badgeKey?: NavBadgeKey
-  }>
-}
+type NavItem = { to: string; label: string; icon: ReactNode; badgeKey?: NavBadgeKey }
+type NavGroup = { label: string; items: NavItem[] }
 
-function AppLogo() {
-  return <SmartKeyLogo className="sidebar-logo-icon" compact />
-}
-
-function GridIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+function Icon({ children }: { children: ReactNode }) {
+  return (
+    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {children}
+    </svg>
+  )
 }
 
 function SparkIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z" /><path d="M5 15l.9 2.1L8 18l-2.1.9L5 21l-.9-2.1L2 18l2.1-.9L5 15Z" /></svg>
+  return <Icon><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /></Icon>
 }
 
-function MatrixIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18M9 3v18M15 3v18" /></svg>
-}
-
-function RecommendIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-}
-
-function AnalyzeIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
-}
-
-function WriterIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
-}
-
-function ImageIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8.5" cy="10" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
-}
-
-function RankIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+function GridIcon() {
+  return <Icon><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></Icon>
 }
 
 function LibraryIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
+  return <Icon><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></Icon>
 }
 
 function ArticlesIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
+  return <Icon><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h8" /></Icon>
+}
+
+function WriterIcon() {
+  return <Icon><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></Icon>
+}
+
+function MatrixIcon() {
+  return <Icon><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18M9 3v18M15 3v18" /></Icon>
+}
+
+function RecommendIcon() {
+  return <Icon><path d="m12 2 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-6z" /></Icon>
+}
+
+function AnalyzeIcon() {
+  return <Icon><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></Icon>
+}
+
+function ImageIcon() {
+  return <Icon><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8.5" cy="10" r="1.5" /><path d="m21 15-5-5L5 21" /></Icon>
 }
 
 function ImportIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" /></svg>
+  return <Icon><path d="M12 12v9" /><path d="m16 16-4-4-4 4" /><path d="M20 18a5 5 0 0 0-2-9h-1A8 8 0 1 0 3 16" /></Icon>
 }
 
-function SettingsIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .33 1.82l.07.06a2 2 0 0 1-2.84 2.84l-.06-.07a1.7 1.7 0 0 0-1.82-.33 1.7 1.7 0 0 0-1.03 1.55V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-1.02-1.55 1.7 1.7 0 0 0-1.82.33l-.06.07a2 2 0 1 1-2.84-2.84l.07-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.64 8.5a1.7 1.7 0 0 0-.33-1.82l-.07-.06a2 2 0 1 1 2.84-2.84l.06.07a1.7 1.7 0 0 0 1.82.33h.01a1.7 1.7 0 0 0 1.02-1.55V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.55 1.7 1.7 0 0 0 1.82-.33l.06-.07a2 2 0 1 1 2.84 2.84l-.07.06a1.7 1.7 0 0 0-.33 1.82v.01a1.7 1.7 0 0 0 1.55 1.02H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z" /></svg>
-}
-
-function DatabaseIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" /><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></svg>
+function RankIcon() {
+  return <Icon><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></Icon>
 }
 
 function IndexingIcon() {
-  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35" /><path d="M8 11h6M11 8v6" /></svg>
+  return <Icon><circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35" /><path d="M8 11h6M11 8v6" /></Icon>
+}
+
+function DatabaseIcon() {
+  return <Icon><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" /><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></Icon>
+}
+
+function SettingsIcon() {
+  return <Icon><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .33 1.82l.07.06a2 2 0 0 1-2.84 2.84l-.06-.07a1.7 1.7 0 0 0-1.82-.33 1.7 1.7 0 0 0-1.03 1.55V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-1.02-1.55 1.7 1.7 0 0 0-1.82.33l-.06.07a2 2 0 1 1-2.84-2.84l.07-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.64 8.5a1.7 1.7 0 0 0-.33-1.82l-.07-.06a2 2 0 1 1 2.84-2.84l.06.07a1.7 1.7 0 0 0 1.82.33 1.7 1.7 0 0 0 1.02-1.55V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.55 1.7 1.7 0 0 0 1.82-.33l.06-.07a2 2 0 1 1 2.84 2.84l-.07.06a1.7 1.7 0 0 0-.33 1.82 1.7 1.7 0 0 0 1.55 1.02H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z" /></Icon>
 }
 
 function navTestId(path: string) {
@@ -90,10 +88,13 @@ export function AppShell() {
   const language = useUiLanguage()
   const copy = messages[language].shell
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const defaultDarkMigrated = window.localStorage.getItem('smartkey.theme.defaultDark.v1') === '1'
-    const stored = window.localStorage.getItem('smartkey.theme')
-    if (!defaultDarkMigrated) return 'dark'
-    return stored === 'light' ? 'light' : 'dark'
+    const legacyDefaultDark = window.localStorage.getItem('smartkey.theme.defaultDark.v1') === '1'
+    if (legacyDefaultDark && window.localStorage.getItem('smartkey.theme.lightDefault.v1') !== '1') {
+      window.localStorage.setItem('smartkey.theme.lightDefault.v1', '1')
+      window.localStorage.setItem('smartkey.theme', 'light')
+      return 'light'
+    }
+    return window.localStorage.getItem('smartkey.theme') === 'dark' ? 'dark' : 'light'
   })
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [counts, setCounts] = useState({ keywords: 0, articles: 0, rank: 0 })
@@ -104,12 +105,10 @@ export function AppShell() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     window.localStorage.setItem('smartkey.theme', theme)
-    window.localStorage.setItem('smartkey.theme.defaultDark.v1', '1')
   }, [theme])
 
   useEffect(() => {
-    const saved = window.localStorage.getItem('smartkey.sidebar.collapsed')
-    if (saved === '1') setSidebarCollapsed(true)
+    setSidebarCollapsed(window.localStorage.getItem('smartkey.sidebar.collapsed') === '1')
   }, [])
 
   useEffect(() => {
@@ -165,7 +164,7 @@ export function AppShell() {
         { to: '/settings', label: language === 'zh' ? '设置' : 'Settings', icon: <SettingsIcon /> },
       ],
     },
-  ], [copy, language])
+  ], [copy.nav, language])
 
   const quickNavItems = useMemo(
     () => navGroups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.label }))),
@@ -218,19 +217,16 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKeydown)
   }, [filteredQuickNavItems, navigate, paletteIndex, paletteOpen])
 
-  const footerLangClass = useMemo(
-    () => ({
-      zh: language === 'zh' ? 'lang-opt active' : 'lang-opt',
-      en: language === 'en' ? 'lang-opt active' : 'lang-opt',
-    }),
-    [language],
-  )
+  const footerLangClass = {
+    zh: language === 'zh' ? 'lang-opt active' : 'lang-opt',
+    en: language === 'en' ? 'lang-opt active' : 'lang-opt',
+  }
 
   return (
     <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <aside className="sidebar" id="sidebar" data-testid="shell.sidebar">
         <div className="sidebar-logo">
-          {!sidebarCollapsed ? <AppLogo /> : null}
+          {!sidebarCollapsed ? <SmartKeyLogo className="sidebar-logo-icon" compact /> : null}
           {!sidebarCollapsed ? (
             <div className="sidebar-logo-copy">
               <div className="sidebar-logo-text">SmartKey</div>
@@ -303,13 +299,15 @@ export function AppShell() {
             <span className="footer-btn-text">{language === 'zh' ? '打开命令面板' : 'Open command palette'}</span>
           </button>
           <div className="cloud-workspace-chip">
-            <strong>{auth.workspace?.name || 'Cloud Workspace'}</strong>
-            <span>{auth.user?.email || ''}</span>
+            <strong>{auth.workspace?.name || (language === 'zh' ? '本地工作区' : 'Local Workspace')}</strong>
+            <span>{auth.user?.email || (language === 'zh' ? '无需登录即可使用' : 'No sign-in required')}</span>
           </div>
-          <button className="footer-btn" onClick={() => auth.signOut()}>
-            <span>↪</span>
-            <span className="footer-btn-text">{language === 'zh' ? '退出登录' : 'Sign out'}</span>
-          </button>
+          {auth.session ? (
+            <button className="footer-btn" onClick={() => auth.signOut()}>
+              <span>↪</span>
+              <span className="footer-btn-text">{language === 'zh' ? '退出登录' : 'Sign out'}</span>
+            </button>
+          ) : null}
         </div>
       </aside>
 
@@ -325,13 +323,13 @@ export function AppShell() {
                 autoFocus
                 value={paletteQuery}
                 onChange={(event) => setPaletteQuery(event.target.value)}
-                placeholder={language === 'zh' ? '输入页面名称，回车跳转…' : 'Type a page name and press Enter…'}
+                placeholder={language === 'zh' ? '输入页面名称，回车跳转...' : 'Type a page name and press Enter...'}
               />
               <span className="command-palette-hint">⌘K</span>
             </div>
             <div className="command-palette-list">
               {!filteredQuickNavItems.length ? (
-                <div className="command-palette-empty">{language === 'zh' ? '没有匹配项' : 'No results'}</div>
+                <div className="command-palette-empty">{language === 'zh' ? '没有匹配页面' : 'No results'}</div>
               ) : filteredQuickNavItems.map((item, index) => (
                 <button
                   key={item.to}

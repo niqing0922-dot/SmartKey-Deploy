@@ -1,5 +1,4 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { RequireAuth } from '@/auth/RequireAuth'
 import { AppShell } from '@/components/layout/AppShell'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { ArticlesPage } from '@/features/articles/ArticlesPage'
@@ -33,7 +32,7 @@ export function AppRoutes() {
       <Route path="/showcase" element={<ShowcasePage />} />
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/signup" element={<AuthPage mode="signup" />} />
-      <Route path="/" element={<RequireAuth><AppShell /></RequireAuth>}>
+      <Route path="/" element={<AppShell />}>
         <Route index element={<AIHomePage />} />
         <Route path="home" element={<AIHomePage />} />
         <Route path="dashboard" element={<DashboardPage />} />

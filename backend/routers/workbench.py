@@ -4,9 +4,11 @@ from typing import Any
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
-from backend.auth import require_cloud_context
+from backend import db
+from backend.data_context import get_data_context
 from backend.observability import api_error, api_ok, log_domain_event
 from backend.repositories import cloud
+from backend.repositories.settings import get_settings
 
 router = APIRouter(prefix="/api/workbench", tags=["workbench"])
 
@@ -98,10 +100,10 @@ def _model_name(settings: dict[str, Any], language: str) -> str:
 
 
 def _context_summary(request: Request, current_route: str, language: str) -> dict[str, Any]:
-    ctx = require_cloud_context(request)
-    stats = cloud.dashboard_stats(ctx)
-    articles = cloud.list_articles(ctx)
-    settings = cloud.get_settings(ctx)
+    data_ctx = get_data_context(request)
+    stats = cloud.dashboard_stats(data_ctx.cloud) if data_ctx.is_cloud else db.dashboard_stats()
+    articles = cloud.list_articles(data_ctx.cloud) if data_ctx.is_cloud else db.list_articles()
+    settings = cloud.get_settings(data_ctx.cloud) if data_ctx.is_cloud else get_settings()
     return {
         "keyword_count": int(stats.get("keywords", {}).get("total") or 0),
         "article_count": len(articles),
@@ -489,8 +491,9 @@ def execute_workbench_action(payload: WorkbenchExecutePayload, request: Request)
             details={"action": action.type},
         )
 
-    ctx = require_cloud_context(request)
-    existing = {item["keyword"].strip().lower() for item in cloud.list_keywords(ctx)}
+    data_ctx = get_data_context(request)
+    existing_items = cloud.list_keywords(data_ctx.cloud) if data_ctx.is_cloud else db.list_keywords()
+    existing = {item["keyword"].strip().lower() for item in existing_items}
     created: list[dict[str, Any]] = []
     skipped: list[str] = []
 
@@ -502,16 +505,14 @@ def execute_workbench_action(payload: WorkbenchExecutePayload, request: Request)
         if key in existing:
             skipped.append(keyword)
             continue
-        item = cloud.create_keyword(
-            ctx,
-            {
-                "keyword": keyword,
-                "type": "longtail",
-                "priority": "medium",
-                "status": "pending",
-                "notes": "Added by GlobalComposer",
-            }
-        )
+        payload = {
+            "keyword": keyword,
+            "type": "longtail",
+            "priority": "medium",
+            "status": "pending",
+            "notes": "Added by GlobalComposer",
+        }
+        item = cloud.create_keyword(data_ctx.cloud, payload) if data_ctx.is_cloud else db.create_keyword(payload)
         existing.add(key)
         created.append(item)
 

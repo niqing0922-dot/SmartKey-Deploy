@@ -1,6 +1,6 @@
 import axios from 'axios'
 import type { ApiErrorPayload, ArticleItem, DashboardStats, DownloadInfo, GeoDraftItem, ImagePlanItem, IndexingPrepareBatch, IndexingPrepareResult, KeywordItem, RankJobItem, RankResultItem, RankTemplatePreview, ReadinessStatus, RuntimeDiagnostics, SettingsItem, WorkspaceContext, WorkbenchDispatchRequest, WorkbenchDispatchResponse, WorkbenchExecuteRequest, WorkbenchExecuteResponse } from '@/types'
-import { getAccessToken, getStoredWorkspaceId } from '@/auth/session'
+import { cloudWorkspaceActive, getAccessToken, getStoredWorkspaceId } from '@/auth/session'
 
 type ApiEnvelope<T> = {
   status: string
@@ -26,7 +26,7 @@ api.interceptors.request.use(async (config) => {
   config.headers = config.headers ?? {}
   config.headers['x-request-id'] = requestId
   const token = await getAccessToken()
-  const workspaceId = getStoredWorkspaceId()
+  const workspaceId = cloudWorkspaceActive() ? getStoredWorkspaceId() : ''
   if (token) config.headers.Authorization = `Bearer ${token}`
   if (workspaceId) config.headers['x-workspace-id'] = workspaceId
   ;(config as any).metadata = { startedAt: performance.now(), requestId }

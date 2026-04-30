@@ -5,9 +5,11 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from backend.auth import require_cloud_context
+from backend.data_context import get_data_context
 from backend.observability import api_error, api_ok, log_domain_event
+from backend.repositories import articles as local_articles
 from backend.repositories import cloud
+from backend.repositories import geo_drafts as local_geo_drafts
 from backend.repositories.settings import get_runtime_settings
 from backend.services.ai_service import execute
 from backend.services.geo_export import build_docx, build_markdown
@@ -40,13 +42,14 @@ def _safe_filename(title: str, extension: str) -> str:
 
 @router.get("/drafts")
 def get_drafts(request: Request):
-    ctx = require_cloud_context(request)
-    return api_ok(request, items=cloud.list_geo_drafts(ctx))
+    data_ctx = get_data_context(request)
+    items = cloud.list_geo_drafts(data_ctx.cloud) if data_ctx.is_cloud else local_geo_drafts.list_geo_drafts()
+    return api_ok(request, items=items)
 
 
 @router.post("/draft")
 async def create_draft(payload: GeoDraftRequest, request: Request):
-    ctx = require_cloud_context(request)
+    data_ctx = get_data_context(request)
     if not payload.primary_keyword.strip():
         api_error(status_code=400, code="invalid_input", message="Primary keyword is required.", request=request)
     settings = get_runtime_settings()
@@ -65,9 +68,7 @@ async def create_draft(payload: GeoDraftRequest, request: Request):
         }
     )
     requested_title = payload.title.strip()
-    draft = cloud.save_geo_draft(
-        ctx,
-        {
+    draft_payload = {
             "title": requested_title or (result.get("title_options") or [f"{payload.primary_keyword} guide"])[0],
             "primary_keyword": payload.primary_keyword,
             "secondary_keywords": payload.secondary_keywords,
@@ -87,16 +88,16 @@ async def create_draft(payload: GeoDraftRequest, request: Request):
             "suggestions": result.get("suggestions", []),
             "provider": result.get("provider", settings["default_ai_provider"]),
             "status": result.get("status", "draft"),
-        }
-    )
+    }
+    draft = cloud.save_geo_draft(data_ctx.cloud, draft_payload) if data_ctx.is_cloud else local_geo_drafts.save_geo_draft(draft_payload)
     log_domain_event("geo.draft.generate", request=request, meta={"draft_id": draft["id"]})
     return api_ok(request, item=draft)
 
 
 @router.post("/save")
 def save_to_articles(payload: SaveDraftRequest, request: Request):
-    ctx = require_cloud_context(request)
-    draft = cloud.get_geo_draft(ctx, payload.draft_id)
+    data_ctx = get_data_context(request)
+    draft = cloud.get_geo_draft(data_ctx.cloud, payload.draft_id) if data_ctx.is_cloud else local_geo_drafts.get_geo_draft(payload.draft_id)
     if not draft:
         api_error(status_code=404, code="draft_not_found", message="Draft not found.", request=request)
     content_parts = []
@@ -106,17 +107,18 @@ def save_to_articles(payload: SaveDraftRequest, request: Request):
         content_parts.append(f"## {heading}\n\n{body}".strip())
     for item in draft.get("faq", []):
         content_parts.append(f"Q: {item.get('question', '')}\nA: {item.get('answer', '')}".strip())
-    article = cloud.create_article(ctx, {"title": draft["title"], "content": "\n\n".join(content_parts), "status": "draft", "keyword_ids": []})
+    article_payload = {"title": draft["title"], "content": "\n\n".join(content_parts), "status": "draft", "keyword_ids": []}
+    article = cloud.create_article(data_ctx.cloud, article_payload) if data_ctx.is_cloud else local_articles.create_article(article_payload)
     draft["status"] = "saved"
-    updated = cloud.save_geo_draft(ctx, draft)
+    updated = cloud.save_geo_draft(data_ctx.cloud, draft) if data_ctx.is_cloud else local_geo_drafts.save_geo_draft(draft)
     log_domain_event("geo.draft.save", request=request, meta={"draft_id": payload.draft_id, "article_id": article["id"]})
     return api_ok(request, article=article, draft=updated)
 
 
 @router.get("/export/{draft_id}.md")
 def export_markdown(draft_id: str, request: Request):
-    ctx = require_cloud_context(request)
-    draft = cloud.get_geo_draft(ctx, draft_id)
+    data_ctx = get_data_context(request)
+    draft = cloud.get_geo_draft(data_ctx.cloud, draft_id) if data_ctx.is_cloud else local_geo_drafts.get_geo_draft(draft_id)
     if not draft:
         api_error(status_code=404, code="draft_not_found", message="Draft not found.", request=request)
     content = build_markdown(draft).encode("utf-8")
@@ -131,8 +133,8 @@ def export_markdown(draft_id: str, request: Request):
 
 @router.get("/export/{draft_id}.docx")
 def export_docx(draft_id: str, request: Request):
-    ctx = require_cloud_context(request)
-    draft = cloud.get_geo_draft(ctx, draft_id)
+    data_ctx = get_data_context(request)
+    draft = cloud.get_geo_draft(data_ctx.cloud, draft_id) if data_ctx.is_cloud else local_geo_drafts.get_geo_draft(draft_id)
     if not draft:
         api_error(status_code=404, code="draft_not_found", message="Draft not found.", request=request)
     content = build_docx(draft)

@@ -32,11 +32,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshWorkspace = useCallback(async () => {
     if (!supabaseConfigured) return
-    const data = await cloudApi.bootstrap()
-    const nextWorkspace = data.workspace
-    setWorkspace(nextWorkspace)
-    setWorkspaces(data.workspaces)
-    setStoredWorkspaceId(getStoredWorkspaceId() || nextWorkspace.id)
+    try {
+      const data = await cloudApi.bootstrap()
+      const nextWorkspace = data.workspace
+      setWorkspaces(data.workspaces)
+      const storedWorkspaceId = getStoredWorkspaceId()
+      const activeWorkspace = data.workspaces.find((item) => item.id === storedWorkspaceId) || nextWorkspace
+      setWorkspace(activeWorkspace)
+      setStoredWorkspaceId(activeWorkspace.id)
+    } catch (error) {
+      setWorkspace(null)
+      setWorkspaces([])
+      setStoredWorkspaceId('')
+      throw error
+    }
   }, [])
 
   useEffect(() => {

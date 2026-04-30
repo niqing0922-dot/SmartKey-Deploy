@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SearchToolbar } from '@/components/ui/SearchToolbar'
-import { EmptyState } from '@/components/ui/States'
+import { Alert, EmptyState } from '@/components/ui/States'
 import { useI18n } from '@/i18n/useI18n'
 import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
 import { keywordsApi } from '@/services/api'
@@ -19,11 +19,14 @@ const emptyForm = {
   related_article: '',
 }
 
+function readApiError(issue: any, fallback: string) {
+  return issue?.response?.data?.detail?.message || issue?.userMessage || issue?.message || fallback
+}
+
 export function KeywordsPage() {
   const { t, language } = useI18n()
   const copy = t.keywords
   const common = t.common
-
   const [items, setItems] = useState<KeywordItem[]>([])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
@@ -36,10 +39,17 @@ export function KeywordsPage() {
   const [quickKeyword, setQuickKeyword] = useState('')
   const [editingId, setEditingId] = useState('')
   const [editingKeyword, setEditingKeyword] = useState('')
+  const [error, setError] = useState('')
 
   const load = async () => {
-    const list = await keywordsApi.list()
-    setItems(list)
+    try {
+      const list = await keywordsApi.list()
+      setItems(list)
+      setError('')
+    } catch (issue: any) {
+      setItems([])
+      setError(readApiError(issue, language === 'zh' ? '关键词加载失败。' : 'Failed to load keywords.'))
+    }
   }
 
   useEffect(() => {
@@ -52,14 +62,12 @@ export function KeywordsPage() {
       const keyword = typeof draft.prefill.keyword === 'string' ? draft.prefill.keyword : ''
       const quick = typeof draft.prefill.quickKeyword === 'string' ? draft.prefill.quickKeyword : keyword
       const nextSearch = typeof draft.prefill.search === 'string' ? draft.prefill.search : keyword
-      const nextType = typeof draft.prefill.type === 'string' ? draft.prefill.type : ''
-      const nextStatus = typeof draft.prefill.status === 'string' ? draft.prefill.status : ''
       if (keyword || quick || nextSearch) {
         setSearch(nextSearch)
         setQuickKeyword(quick || keyword)
       }
-      if (nextType) setType(nextType)
-      if (nextStatus) setStatus(nextStatus)
+      if (typeof draft.prefill.type === 'string') setType(draft.prefill.type)
+      if (typeof draft.prefill.status === 'string') setStatus(draft.prefill.status)
       return
     }
 
@@ -94,9 +102,7 @@ export function KeywordsPage() {
       setSelectedId('')
       return
     }
-    if (!selectedId || !filtered.some((item) => item.id === selectedId)) {
-      setSelectedId(filtered[0].id)
-    }
+    if (!selectedId || !filtered.some((item) => item.id === selectedId)) setSelectedId(filtered[0].id)
   }, [filtered, selectedId])
 
   const selected = useMemo(
@@ -122,15 +128,7 @@ export function KeywordsPage() {
 
   const dirty = useMemo(() => {
     if (!selected) return false
-    return (
-      inspector.keyword !== selected.keyword
-      || inspector.type !== selected.type
-      || inspector.priority !== selected.priority
-      || inspector.status !== selected.status
-      || inspector.notes !== selected.notes
-      || inspector.position !== selected.position
-      || inspector.related_article !== selected.related_article
-    )
+    return Object.entries(inspector).some(([key, value]) => value !== selected[key as keyof KeywordItem])
   }, [inspector, selected])
 
   useEffect(() => {
@@ -156,8 +154,13 @@ export function KeywordsPage() {
   }, [filtered, selectedId])
 
   const patchItem = async (id: string, payload: Partial<KeywordItem>) => {
-    await keywordsApi.update(id, payload)
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...payload } : item)))
+    try {
+      const updated = await keywordsApi.update(id, payload)
+      setItems((prev) => prev.map((item) => (item.id === id ? updated : item)))
+      setError('')
+    } catch (issue: any) {
+      setError(readApiError(issue, language === 'zh' ? '关键词保存失败。' : 'Failed to save keyword.'))
+    }
   }
 
   const onCreate = async () => {
@@ -169,6 +172,9 @@ export function KeywordsPage() {
       setItems((prev) => [item, ...prev])
       setSelectedId(item.id)
       setQuickKeyword('')
+      setError('')
+    } catch (issue: any) {
+      setError(readApiError(issue, language === 'zh' ? '关键词新增失败。' : 'Failed to add keyword.'))
     } finally {
       setCreating(false)
     }
@@ -184,10 +190,14 @@ export function KeywordsPage() {
     }
   }
 
-  const removeSelected = async () => {
-    if (!selected) return
-    await keywordsApi.remove(selected.id)
-    setItems((prev) => prev.filter((item) => item.id !== selected.id))
+  const removeKeyword = async (id: string) => {
+    try {
+      await keywordsApi.remove(id)
+      setItems((prev) => prev.filter((item) => item.id !== id))
+      setError('')
+    } catch (issue: any) {
+      setError(readApiError(issue, language === 'zh' ? '关键词删除失败。' : 'Failed to delete keyword.'))
+    }
   }
 
   const startInlineKeyword = (item: KeywordItem) => {
@@ -223,207 +233,196 @@ export function KeywordsPage() {
         }
       />
 
-      <div className="page-body linear-workbench">
-        <section className="linear-left">
-          <Card>
-            <div className="linear-panel-title">{language === 'zh' ? '快速新增' : 'Quick Add'}</div>
-            <div className="linear-inline-create">
-              <input
-                data-testid="keywords.quick-input"
-                value={quickKeyword}
-                onChange={(event) => setQuickKeyword(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') onCreate()
-                }}
-                placeholder={copy.keywordPlaceholder}
-              />
-              <button className="btn btn-primary btn-sm" data-testid="keywords.create-button" onClick={onCreate} disabled={creating}>
-                {common.add}
-              </button>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="linear-panel-title">{language === 'zh' ? '筛选' : 'Filters'}</div>
-            <SearchToolbar>
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} />
-            </SearchToolbar>
-            <div className="linear-filter-stack">
-              <select value={status} onChange={(event) => setStatus(event.target.value)}>
-                <option value="">{copy.allStatus}</option>
-                <option value="pending">{common.pending}</option>
-                <option value="planned">{common.planned}</option>
-                <option value="done">{common.published}</option>
-              </select>
-              <select value={type} onChange={(event) => setType(event.target.value)}>
-                <option value="">{copy.allTypes}</option>
-                {Object.entries(copy.typeLabels).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-              <select value={sort} onChange={(event) => setSort(event.target.value)}>
-                <option value="default">{copy.defaultSort}</option>
-                <option value="alpha">{copy.alpha}</option>
-                <option value="type">{copy.typeSort}</option>
-                <option value="updated">{language === 'zh' ? '最近更新' : 'Recently updated'}</option>
-              </select>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="linear-panel-title">{language === 'zh' ? '概览' : 'Overview'}</div>
-            <div className="linear-metric-list">
-              <div><span>{language === 'zh' ? '总计' : 'Total'}</span><strong>{metrics.all}</strong></div>
-              <div><span>{common.pending}</span><strong>{metrics.pending}</strong></div>
-              <div><span>{common.planned}</span><strong>{metrics.planned}</strong></div>
-              <div><span>{common.published}</span><strong>{metrics.done}</strong></div>
-            </div>
-          </Card>
-        </section>
-
-        <section className="linear-main">
-          <div className="linear-table-wrap">
-            <table className="tbl linear-table table-comfort">
-              <thead>
-                <tr>
-                  <th>{copy.table[0]}</th>
-                  <th>{copy.table[1]}</th>
-                  <th className="table-col-select">{copy.table[2]}</th>
-                  <th className="table-col-compact">{copy.table[3]}</th>
-                  <th>{copy.table[5]}</th>
-                  <th>{copy.table[4]}</th>
-                  <th>{language === 'zh' ? '更新时间' : 'Updated'}</th>
-                  <th>{copy.table[7]}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!filtered.length ? (
-                  <tr>
-                    <td colSpan={8}>
-                      <EmptyState
-                        title={language === 'zh' ? '还没有关键词' : 'No keywords yet'}
-                        description={copy.empty}
-                      />
-                    </td>
-                  </tr>
-                ) : filtered.map((item) => (
-                  <tr
-                    key={item.id}
-                    data-testid={`keywords.row.${item.id}`}
-                    className={item.id === selectedId ? 'selected' : ''}
-                    onClick={() => setSelectedId(item.id)}
-                  >
-                    <td>
-                      {editingId === item.id ? (
-                        <input
-                          autoFocus
-                          value={editingKeyword}
-                          onChange={(event) => setEditingKeyword(event.target.value)}
-                          onBlur={() => saveInlineKeyword(item)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') saveInlineKeyword(item)
-                            if (event.key === 'Escape') setEditingId('')
-                          }}
-                        />
-                      ) : (
-                        <button className="linear-cell-link" onClick={() => startInlineKeyword(item)}>{item.keyword}</button>
-                      )}
-                    </td>
-                    <td><span className={`badge ${badgeClassForType(item.type)}`}>{copy.typeLabels[item.type]}</span></td>
-                    <td className="table-col-select">
-                      <select
-                        className="linear-cell-select table-inline-select"
-                        value={item.status}
-                        onChange={(event) => patchItem(item.id, { status: event.target.value as KeywordStatus })}
-                      >
-                        <option value="pending">{common.pending}</option>
-                        <option value="planned">{common.planned}</option>
-                        <option value="done">{common.published}</option>
-                      </select>
-                    </td>
-                    <td className="table-col-compact">
-                      <select
-                        className="linear-cell-select table-inline-select"
-                        value={item.priority}
-                        onChange={(event) => patchItem(item.id, { priority: event.target.value as KeywordPriority })}
-                      >
-                        {Object.entries(copy.priorityLabels).map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>{item.position || '-'}</td>
-                    <td>{item.related_article || '-'}</td>
-                    <td>{new Date(item.updated_at).toLocaleDateString()}</td>
-                    <td>
-                      <div className="linear-row-actions">
-                        <button className="btn btn-xs" onClick={() => setSelectedId(item.id)}>{common.edit}</button>
-                        <button className="btn btn-xs btn-danger" onClick={async () => {
-                          await keywordsApi.remove(item.id)
-                          setItems((prev) => prev.filter((entry) => entry.id !== item.id))
-                        }}>{common.remove}</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="linear-right">
-          {!selected ? (
-            <EmptyState
-              title={language === 'zh' ? '还没有选中关键词' : 'No keyword selected'}
-              description={language === 'zh' ? '选择一条关键词查看详情。' : 'Select a keyword to inspect details.'}
-            />
-          ) : (
-            <Card className="linear-inspector">
-              <div className="linear-panel-title">{language === 'zh' ? '检查器' : 'Inspector'}</div>
-              <div className="linear-inspector-grid">
-                <Field label={copy.keyword}>
-                  <input value={inspector.keyword} onChange={(event) => setInspector({ ...inspector, keyword: event.target.value })} />
-                </Field>
-                <Field label={copy.type}>
-                  <select value={inspector.type} onChange={(event) => setInspector({ ...inspector, type: event.target.value as KeywordType })}>
-                    {Object.entries(copy.typeLabels).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label={copy.priority}>
-                  <select value={inspector.priority} onChange={(event) => setInspector({ ...inspector, priority: event.target.value as KeywordPriority })}>
-                    {Object.entries(copy.priorityLabels).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label={copy.table[2]}>
-                  <select value={inspector.status} onChange={(event) => setInspector({ ...inspector, status: event.target.value as KeywordStatus })}>
-                    <option value="pending">{common.pending}</option>
-                    <option value="planned">{common.planned}</option>
-                    <option value="done">{common.published}</option>
-                  </select>
-                </Field>
-                <Field label={copy.table[4]}>
-                  <input value={inspector.related_article} onChange={(event) => setInspector({ ...inspector, related_article: event.target.value })} />
-                </Field>
-                <Field label={copy.table[5]}>
-                  <input value={inspector.position} onChange={(event) => setInspector({ ...inspector, position: event.target.value })} />
-                </Field>
-                <Field label={copy.notes}>
-                  <textarea rows={8} value={inspector.notes} onChange={(event) => setInspector({ ...inspector, notes: event.target.value })} />
-                </Field>
-              </div>
-              <div className="linear-inspector-actions">
-                <button className="btn btn-sm" data-testid="keywords.remove-button" onClick={removeSelected}>{common.remove}</button>
-                <button className="btn btn-primary btn-sm" data-testid="keywords.save-button" onClick={saveInspector} disabled={!dirty || saving}>
-                  {saving ? common.generating : common.save}
+      <div className="page-body">
+        {error ? <Alert tone="warn">{error}</Alert> : null}
+        <div className="linear-workbench">
+          <section className="linear-left">
+            <Card>
+              <div className="linear-panel-title">{language === 'zh' ? '快速新增' : 'Quick Add'}</div>
+              <div className="linear-inline-create">
+                <input
+                  data-testid="keywords.quick-input"
+                  value={quickKeyword}
+                  onChange={(event) => setQuickKeyword(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') onCreate()
+                  }}
+                  placeholder={copy.keywordPlaceholder}
+                />
+                <button className="btn btn-primary btn-sm" data-testid="keywords.create-button" onClick={onCreate} disabled={creating}>
+                  {common.add}
                 </button>
               </div>
             </Card>
-          )}
-        </section>
+
+            <Card>
+              <div className="linear-panel-title">{language === 'zh' ? '筛选' : 'Filters'}</div>
+              <SearchToolbar>
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} />
+              </SearchToolbar>
+              <div className="linear-filter-stack">
+                <select value={status} onChange={(event) => setStatus(event.target.value)}>
+                  <option value="">{copy.allStatus}</option>
+                  <option value="pending">{common.pending}</option>
+                  <option value="planned">{common.planned}</option>
+                  <option value="done">{common.published}</option>
+                </select>
+                <select value={type} onChange={(event) => setType(event.target.value)}>
+                  <option value="">{copy.allTypes}</option>
+                  {Object.entries(copy.typeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <select value={sort} onChange={(event) => setSort(event.target.value)}>
+                  <option value="default">{copy.defaultSort}</option>
+                  <option value="alpha">{copy.alpha}</option>
+                  <option value="type">{copy.typeSort}</option>
+                  <option value="updated">{language === 'zh' ? '最近更新' : 'Recently updated'}</option>
+                </select>
+              </div>
+            </Card>
+
+            <Card>
+              <div className="linear-panel-title">{language === 'zh' ? '概览' : 'Overview'}</div>
+              <div className="linear-metric-list">
+                <div><span>{language === 'zh' ? '总计' : 'Total'}</span><strong>{metrics.all}</strong></div>
+                <div><span>{common.pending}</span><strong>{metrics.pending}</strong></div>
+                <div><span>{common.planned}</span><strong>{metrics.planned}</strong></div>
+                <div><span>{common.published}</span><strong>{metrics.done}</strong></div>
+              </div>
+            </Card>
+          </section>
+
+          <section className="linear-main">
+            <div className="linear-table-wrap">
+              <table className="tbl linear-table table-comfort">
+                <thead>
+                  <tr>
+                    <th>{copy.table[0]}</th>
+                    <th>{copy.table[1]}</th>
+                    <th className="table-col-select">{copy.table[2]}</th>
+                    <th className="table-col-compact">{copy.table[3]}</th>
+                    <th>{copy.table[5]}</th>
+                    <th>{copy.table[4]}</th>
+                    <th>{language === 'zh' ? '更新时间' : 'Updated'}</th>
+                    <th>{copy.table[7]}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!filtered.length ? (
+                    <tr>
+                      <td colSpan={8}>
+                        <EmptyState title={language === 'zh' ? '还没有关键词' : 'No keywords yet'} description={copy.empty} />
+                      </td>
+                    </tr>
+                  ) : filtered.map((item) => (
+                    <tr
+                      key={item.id}
+                      data-testid={`keywords.row.${item.id}`}
+                      className={item.id === selectedId ? 'selected' : ''}
+                      onClick={() => setSelectedId(item.id)}
+                    >
+                      <td>
+                        {editingId === item.id ? (
+                          <input
+                            autoFocus
+                            value={editingKeyword}
+                            onChange={(event) => setEditingKeyword(event.target.value)}
+                            onBlur={() => saveInlineKeyword(item)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') saveInlineKeyword(item)
+                              if (event.key === 'Escape') setEditingId('')
+                            }}
+                          />
+                        ) : (
+                          <button className="linear-cell-link" onClick={() => startInlineKeyword(item)}>{item.keyword}</button>
+                        )}
+                      </td>
+                      <td><span className={`badge ${badgeClassForType(item.type)}`}>{copy.typeLabels[item.type]}</span></td>
+                      <td className="table-col-select">
+                        <select className="linear-cell-select table-inline-select" value={item.status} onChange={(event) => patchItem(item.id, { status: event.target.value as KeywordStatus })}>
+                          <option value="pending">{common.pending}</option>
+                          <option value="planned">{common.planned}</option>
+                          <option value="done">{common.published}</option>
+                        </select>
+                      </td>
+                      <td className="table-col-compact">
+                        <select className="linear-cell-select table-inline-select" value={item.priority} onChange={(event) => patchItem(item.id, { priority: event.target.value as KeywordPriority })}>
+                          {Object.entries(copy.priorityLabels).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>{item.position || '-'}</td>
+                      <td>{item.related_article || '-'}</td>
+                      <td>{new Date(item.updated_at).toLocaleDateString()}</td>
+                      <td>
+                        <div className="linear-row-actions">
+                          <button className="btn btn-xs" onClick={() => setSelectedId(item.id)}>{common.edit}</button>
+                          <button className="btn btn-xs btn-danger" onClick={() => removeKeyword(item.id)}>{common.remove}</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="linear-right">
+            {!selected ? (
+              <EmptyState
+                title={language === 'zh' ? '还没有选中关键词' : 'No keyword selected'}
+                description={language === 'zh' ? '选择一条关键词查看详情。' : 'Select a keyword to inspect details.'}
+              />
+            ) : (
+              <Card className="linear-inspector">
+                <div className="linear-panel-title">{language === 'zh' ? '检查器' : 'Inspector'}</div>
+                <div className="linear-inspector-grid">
+                  <Field label={copy.keyword}>
+                    <input value={inspector.keyword} onChange={(event) => setInspector({ ...inspector, keyword: event.target.value })} />
+                  </Field>
+                  <Field label={copy.type}>
+                    <select value={inspector.type} onChange={(event) => setInspector({ ...inspector, type: event.target.value as KeywordType })}>
+                      {Object.entries(copy.typeLabels).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label={copy.priority}>
+                    <select value={inspector.priority} onChange={(event) => setInspector({ ...inspector, priority: event.target.value as KeywordPriority })}>
+                      {Object.entries(copy.priorityLabels).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label={copy.table[2]}>
+                    <select value={inspector.status} onChange={(event) => setInspector({ ...inspector, status: event.target.value as KeywordStatus })}>
+                      <option value="pending">{common.pending}</option>
+                      <option value="planned">{common.planned}</option>
+                      <option value="done">{common.published}</option>
+                    </select>
+                  </Field>
+                  <Field label={copy.table[4]}>
+                    <input value={inspector.related_article} onChange={(event) => setInspector({ ...inspector, related_article: event.target.value })} />
+                  </Field>
+                  <Field label={copy.table[5]}>
+                    <input value={inspector.position} onChange={(event) => setInspector({ ...inspector, position: event.target.value })} />
+                  </Field>
+                  <Field label={copy.notes}>
+                    <textarea rows={8} value={inspector.notes} onChange={(event) => setInspector({ ...inspector, notes: event.target.value })} />
+                  </Field>
+                </div>
+                <div className="linear-inspector-actions">
+                  <button className="btn btn-sm" data-testid="keywords.remove-button" onClick={() => removeKeyword(selected.id)}>{common.remove}</button>
+                  <button className="btn btn-primary btn-sm" data-testid="keywords.save-button" onClick={saveInspector} disabled={!dirty || saving}>
+                    {saving ? common.generating : common.save}
+                  </button>
+                </div>
+              </Card>
+            )}
+          </section>
+        </div>
       </div>
     </div>
   )
