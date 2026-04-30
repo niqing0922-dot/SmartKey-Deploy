@@ -22,6 +22,8 @@ class TemplateWorksheet:
     sheet_name: str
     keyword_rows: list[tuple[int, str]]
     history_headers: list[str]
+    data_row_count: int
+    blank_keyword_rows: list[int]
 
 
 def _clean_text(value: Any) -> str:
@@ -42,10 +44,13 @@ def _load_workbook_bytes(content_base64: str):
 def _pick_template_sheet(workbook) -> TemplateWorksheet:
     for worksheet in workbook.worksheets:
         keyword_rows: list[tuple[int, str]] = []
+        blank_keyword_rows: list[int] = []
         for row_idx in range(2, worksheet.max_row + 1):
             keyword = _clean_text(worksheet.cell(row=row_idx, column=1).value)
             if keyword:
                 keyword_rows.append((row_idx, keyword))
+            else:
+                blank_keyword_rows.append(row_idx)
         if keyword_rows:
             history_headers = [
                 _clean_text(worksheet.cell(row=1, column=column_idx).value)
@@ -56,9 +61,11 @@ def _pick_template_sheet(workbook) -> TemplateWorksheet:
                 sheet_name=worksheet.title,
                 keyword_rows=keyword_rows,
                 history_headers=history_headers,
+                data_row_count=max(0, worksheet.max_row - 1),
+                blank_keyword_rows=blank_keyword_rows,
             )
     worksheet = workbook[workbook.sheetnames[0]]
-    return TemplateWorksheet(sheet_name=worksheet.title, keyword_rows=[], history_headers=[])
+    return TemplateWorksheet(sheet_name=worksheet.title, keyword_rows=[], history_headers=[], data_row_count=max(0, worksheet.max_row - 1), blank_keyword_rows=list(range(2, worksheet.max_row + 1)))
 
 
 def preview_rank_template(filename: str, content_base64: str) -> dict[str, Any]:
@@ -68,6 +75,10 @@ def preview_rank_template(filename: str, content_base64: str) -> dict[str, Any]:
         "filename": filename,
         "sheet_name": template_sheet.sheet_name,
         "keyword_count": len(template_sheet.keyword_rows),
+        "queryable_keyword_count": len(template_sheet.keyword_rows),
+        "data_row_count": template_sheet.data_row_count,
+        "blank_keyword_rows": template_sheet.blank_keyword_rows,
+        "skipped_blank_keyword_count": len(template_sheet.blank_keyword_rows),
         "history_column_count": len(template_sheet.history_headers),
         "history_headers": template_sheet.history_headers,
         "keyword_preview": [keyword for _, keyword in template_sheet.keyword_rows[:10]],
@@ -89,6 +100,15 @@ def _date_column_label(existing_headers: list[str]) -> str:
     if base not in existing_headers:
         return base
     return datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
+def _resolve_date_column_label(existing_headers: list[str], requested_label: str = "") -> str:
+    label = _clean_text(requested_label)
+    if label and label not in existing_headers:
+        return label
+    if label:
+        return f"{label} {datetime.now().strftime('%H:%M')}"
+    return _date_column_label(existing_headers)
 
 
 def _build_result_payload(result: RankResult) -> dict[str, Any]:
@@ -160,6 +180,7 @@ def run_batch_template_tracking(
     hl: str,
     gl: str,
     api_key: str,
+    date_column_label: str = "",
 ) -> dict[str, Any]:
     workbook = _load_workbook_bytes(content_base64)
     template_sheet = _pick_template_sheet(workbook)
@@ -184,7 +205,7 @@ def run_batch_template_tracking(
         keywords = keywords[:allowed_keywords]
         template_sheet.keyword_rows = template_sheet.keyword_rows[: len(keywords)]
 
-    date_header = _date_column_label(template_sheet.history_headers)
+    date_header = _resolve_date_column_label(template_sheet.history_headers, date_column_label)
     date_column = worksheet.max_column + 1
     worksheet.cell(row=1, column=date_column, value=date_header)
 
@@ -229,10 +250,18 @@ def run_batch_template_tracking(
         "sheet_name": template_sheet.sheet_name,
         "new_date_column": date_header,
         "keyword_count": len(template_sheet.keyword_rows),
+        "queryable_keyword_count": len(template_sheet.keyword_rows),
+        "data_row_count": template_sheet.data_row_count,
+        "blank_keyword_rows": template_sheet.blank_keyword_rows,
+        "skipped_blank_keyword_count": len(template_sheet.blank_keyword_rows),
         "template_preview": {
             "filename": filename,
             "sheet_name": template_sheet.sheet_name,
             "keyword_count": len(template_sheet.keyword_rows),
+            "queryable_keyword_count": len(template_sheet.keyword_rows),
+            "data_row_count": template_sheet.data_row_count,
+            "blank_keyword_rows": template_sheet.blank_keyword_rows,
+            "skipped_blank_keyword_count": len(template_sheet.blank_keyword_rows),
             "history_column_count": len(template_sheet.history_headers),
             "history_headers": template_sheet.history_headers,
             "keyword_preview": keywords[:10],

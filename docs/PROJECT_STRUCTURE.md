@@ -24,10 +24,10 @@ These folders are product dependencies, but they are not the primary place for p
 
 ## Tests
 
-- `tests/e2e/`
-  End-to-end coverage.
-- `tests/visual/`
-  Visual/layout checks.
+- `tests/smoke/`
+  Backend-served production smoke checks.
+- `tests/quality/`
+  Static quality checks for docs, design tokens, and theme structure.
 - `tests/helpers/`
   Shared test helpers and mock data.
 
@@ -55,10 +55,8 @@ Anything inside `archive/` should be treated as read-only history unless there i
 
 - `.artifacts/logs/`
   Runtime logs.
-- `.artifacts/playwright-report/`
-  Playwright HTML reports.
 - `.artifacts/test-results/`
-  Playwright output artifacts.
+  Generated test output artifacts.
 
 Generated artifacts should not live in the repo root.
 
@@ -77,3 +75,5 @@ When launched through Electron, runtime data is redirected into `%APPDATA%/Smart
 2. Treat `tools/` as external capability modules, not the main app surface.
 3. Put temporary outputs in `.artifacts/`, not the repo root.
 4. Move deprecated experiments into `archive/` instead of leaving them mixed with active code.
+
+For the current rebuild cleanup sequence, use [REFACTOR_ROADMAP.md](C:/Users/24990/SmartKey-Deploy/docs/REFACTOR_ROADMAP.md).

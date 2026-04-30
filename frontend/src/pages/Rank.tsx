@@ -25,6 +25,8 @@ function latestResultText(result?: RankResultItem | null) {
 }
 
 type MatrixFilter = 'all' | 'latest_found' | 'latest_missed' | 'miss_streak'
+const DEFAULT_RANK_DOMAIN = 'waveteliot.com'
+const DEFAULT_DATE_COLUMN = '4.29'
 
 export function RankPage() {
   const navigate = useNavigate()
@@ -47,6 +49,7 @@ export function RankPage() {
   const [singleKeywordResult, setSingleKeywordResult] = useState<RankResultItem | null>(null)
 
   const [domain, setDomain] = useState('')
+  const [dateColumnLabel, setDateColumnLabel] = useState(DEFAULT_DATE_COLUMN)
   const [provider, setProvider] = useState('serpapi')
   const [maxPages, setMaxPages] = useState('10')
   const [hl, setHl] = useState('en')
@@ -57,7 +60,8 @@ export function RankPage() {
   const [runningSingle, setRunningSingle] = useState(false)
   const [error, setError] = useState('')
 
-  const rankReady = Boolean(settings?.serpapi_enabled && settings?.serpapi_key_configured && (domain || settings?.rank_target_domain))
+  const effectiveDomain = domain.trim() || settings?.rank_target_domain?.trim() || DEFAULT_RANK_DOMAIN
+  const rankReady = Boolean(settings?.serpapi_enabled && settings?.serpapi_key_configured && effectiveDomain)
 
   const batchJobs = useMemo(
     () => jobs.filter((job) => job.summary?.mode === 'batch_template_run'),
@@ -88,7 +92,7 @@ export function RankPage() {
     Promise.all([settingsApi.get(), loadJobs()])
       .then(([settingsData]) => {
         setSettings(settingsData)
-        setDomain(settingsData.rank_target_domain || '')
+        setDomain(settingsData.rank_target_domain || DEFAULT_RANK_DOMAIN)
       })
       .catch((issue: any) => setError(issue?.response?.data?.detail?.message || issue?.message || 'Failed to load rank page'))
   }, [])
@@ -155,6 +159,7 @@ export function RankPage() {
         hl,
         gl,
         source: 'template_upload',
+        date_column_label: dateColumnLabel.trim() || DEFAULT_DATE_COLUMN,
       })
       setMatrixColumns(response?.columns || [])
       setMatrixRows(response?.rows || [])
@@ -213,10 +218,10 @@ export function RankPage() {
         <section className="linear-left rank-v2-left">
           <div className="settings-status-strip" style={{ position: 'static', paddingTop: 0 }}>
             <span className={rankReady ? 'status-chip ready' : 'status-chip warn'}>
-              SerpAPI: {rankReady ? (language === 'zh' ? '可用' : 'Ready') : (language === 'zh' ? '未配置' : 'Missing')}
+              SerpAPI: {rankReady ? 'Ready' : 'Missing'}
             </span>
-            <span className={domain ? 'status-chip ready' : 'status-chip warn'}>
-              {copy.domain}: {domain || '-'}
+            <span className={effectiveDomain ? 'status-chip ready' : 'status-chip warn'}>
+              {copy.domain}: {effectiveDomain || '-'}
             </span>
           </div>
 
@@ -232,9 +237,7 @@ export function RankPage() {
           <div className="rank-v2-panel">
             <div className="linear-panel-title">{copy.upload}</div>
             <div className="muted-text" style={{ marginBottom: 10 }}>
-              {language === 'zh'
-                ? '先上传 Excel 模板，再批量更新关键词的历史排名矩阵。'
-                : 'Upload the Excel template first, then update the keyword history matrix in batch.'}
+              Upload the Excel template first, then update the keyword history matrix in batch.
             </div>
             <label className="rank-upload-dropzone">
               <input type="file" accept=".xlsx" onChange={(event) => onTemplateChosen(event.target.files?.[0] || null)} />
@@ -245,8 +248,15 @@ export function RankPage() {
               <div className="rank-template-meta">
                 <div><span>{copy.sheetName}</span><strong>{templatePreview.sheet_name}</strong></div>
                 <div><span>{copy.keywordCount}</span><strong>{templatePreview.keyword_count}</strong></div>
+                <div><span>Data rows</span><strong>{templatePreview.data_row_count ?? templatePreview.keyword_count}</strong></div>
+                <div><span>Blank rows</span><strong>{templatePreview.skipped_blank_keyword_count || 0}</strong></div>
                 <div><span>{copy.historyColumns}</span><strong>{templatePreview.history_column_count}</strong></div>
               </div>
+            ) : null}
+            {templatePreview?.blank_keyword_rows?.length ? (
+              <Alert tone="warn">
+                The template has {templatePreview.data_row_count ?? templatePreview.keyword_count} data rows and {templatePreview.keyword_count} queryable keywords. Blank rows {templatePreview.blank_keyword_rows.join(', ')} will be skipped.
+              </Alert>
             ) : null}
           </div>
 
@@ -254,7 +264,7 @@ export function RankPage() {
             <div className="linear-panel-title">{copy.templateSummary}</div>
             {!templatePreview ? (
               <EmptyState
-                title={language === 'zh' ? '还没有模板' : 'No template yet'}
+                title="No template yet"
                 description={copy.templateEmpty}
               />
             ) : (
@@ -270,14 +280,16 @@ export function RankPage() {
 
           <div className="rank-v2-panel">
             <div className="muted-text" style={{ marginBottom: 10 }}>
-              {language === 'zh'
-                ? '这些参数会同时用于模板批量更新和单关键词检查。'
-                : 'These settings apply to both template batch runs and single keyword checks.'}
+              These settings apply to both template batch runs and single keyword checks.
             </div>
             <div className="rank-config-grid">
               <div className="field-block">
                 <label>{copy.domain}</label>
                 <input value={domain} onChange={(event) => setDomain(event.target.value)} />
+              </div>
+              <div className="field-block">
+                <label>{copy.newDateColumn}</label>
+                <input value={dateColumnLabel} onChange={(event) => setDateColumnLabel(event.target.value)} />
               </div>
               <div className="field-block">
                 <label>{copy.provider}</label>
@@ -322,6 +334,7 @@ export function RankPage() {
               <div className="rank-output-meta">
                 <div><span>{copy.newDateColumn}</span><strong>{outputSummary.new_date_column || '-'}</strong></div>
                 <div><span>{copy.keywordCount}</span><strong>{outputSummary.keyword_count || outputSummary.total || 0}</strong></div>
+                <div><span>Blank rows</span><strong>{outputSummary.skipped_blank_keyword_count || 0}</strong></div>
                 <div><span>Found / Miss</span><strong>{outputSummary.found || 0} / {outputSummary.notFound || 0}</strong></div>
                 <div><span>Error</span><strong>{outputSummary.errors || 0}</strong></div>
               </div>
@@ -352,7 +365,7 @@ export function RankPage() {
 
           {!matrixColumns.length || !matrixRows.length ? (
             <EmptyState
-              title={language === 'zh' ? '还没有历史矩阵' : 'No history matrix yet'}
+              title="No history matrix yet"
               description={copy.noMatrix}
             />
           ) : (
@@ -454,9 +467,7 @@ export function RankPage() {
           <div className="rank-v2-panel">
             <div className="linear-panel-title">{copy.singleTitle}</div>
             <div className="muted-text" style={{ marginBottom: 10 }}>
-              {language === 'zh'
-                ? '单关键词查询不会覆盖当前矩阵，只用于快速验证。'
-                : 'Single keyword checks do not replace the current matrix. Use them for quick validation.'}
+              Single keyword checks do not replace the current matrix. Use them for quick validation.
             </div>
             <div className="field-block">
               <input value={singleKeyword} onChange={(event) => setSingleKeyword(event.target.value)} placeholder={copy.singlePlaceholder} />
@@ -483,15 +494,15 @@ export function RankPage() {
           </div>
 
           <div className="rank-v2-panel">
-            <div className="linear-panel-title">{language === 'zh' ? '工作建议' : 'Working Notes'}</div>
+            <div className="linear-panel-title">Working Notes</div>
             <div className="ai-home-principles">
               <div className="ai-home-principle">
-                <strong>{language === 'zh' ? '先模板，后单查' : 'Template first, single checks second'}</strong>
-                <span>{language === 'zh' ? '先用模板建立历史矩阵，再用单关键词验证波动项。' : 'Build the history matrix with the template first, then use single checks to inspect volatile terms.'}</span>
+                <strong>Template first, single checks second</strong>
+                <span>Build the history matrix with the template first, then use single checks to inspect volatile terms.</span>
               </div>
               <div className="ai-home-principle">
-                <strong>{language === 'zh' ? '把它当成可选模块' : 'Treat this as optional'}</strong>
-                <span>{language === 'zh' ? 'Rank 模块不应该阻塞关键词库、文章追踪和 GEO Writer 的本地工作。' : 'Rank should never block the local keyword, article, or GEO Writer workflows.'}</span>
+                <strong>Treat this as optional</strong>
+                <span>Rank should never block the local keyword, article, or GEO Writer workflows.</span>
               </div>
             </div>
           </div>

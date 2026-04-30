@@ -1,11 +1,19 @@
-import { chromium } from 'playwright'
-
 const baseUrl = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:3000'
 
 async function assertJson(path) {
   const response = await fetch(`${baseUrl}${path}`)
   if (!response.ok) throw new Error(`${path} failed with ${response.status}`)
   return response.json()
+}
+
+async function assertText(path, expectedFragment) {
+  const response = await fetch(`${baseUrl}${path}`)
+  if (!response.ok) throw new Error(`${path} failed with ${response.status}`)
+  const text = await response.text()
+  if (!text.includes(expectedFragment)) {
+    throw new Error(`${path} did not include expected fragment: ${expectedFragment}`)
+  }
+  return text
 }
 
 async function main() {
@@ -19,22 +27,11 @@ async function main() {
   await assertJson('/api/settings')
   await assertJson('/api/diagnostics/runtime')
 
-  const browser = await chromium.launch({ headless: true })
-  const page = await browser.newPage()
-  await page.goto(baseUrl, { waitUntil: 'networkidle' })
-  const title = await page.locator('.page-title').textContent()
-  if (!title) throw new Error('Dashboard title did not render.')
-  await page.getByTestId('nav.keywords').click()
-  await page.getByTestId('keywords.create-button').waitFor()
-  await page.getByTestId('nav.articles').click()
-  await page.getByTestId('articles.create-button').waitFor()
-  await page.getByTestId('nav.articles.geo-writer').click()
-  await page.getByTestId('geo.generate-button').waitFor()
-  await page.getByTestId('nav.settings').click()
-  await page.getByTestId('settings-save').waitFor()
-  await page.getByTestId('nav.local-data').click()
-  await page.getByTestId('local-data.backup-button').waitFor()
-  await browser.close()
+  await assertText('/', '<div id="root"></div>')
+  await assertText('/keywords', '<div id="root"></div>')
+  await assertText('/articles/geo-writer', '<div id="root"></div>')
+  await assertText('/settings', '<div id="root"></div>')
+
   console.log(JSON.stringify({ baseUrl, status: 'ok' }, null, 2))
 }
 

@@ -215,6 +215,10 @@ export interface IndexingPrepareExcludedItem {
 }
 
 export interface IndexingPrepareResult {
+  batch_id?: string
+  id?: string
+  status?: string
+  created_at?: string
   counts: {
     raw: number
     submit_ready: number
@@ -230,10 +234,20 @@ export interface IndexingPrepareResult {
   generated_files: Record<string, string>
 }
 
+export interface IndexingPrepareBatch extends IndexingPrepareResult {
+  id: string
+  status: string
+  created_at: string
+}
+
 export interface RankTemplatePreview {
   filename: string
   sheet_name: string
   keyword_count: number
+  queryable_keyword_count?: number
+  data_row_count?: number
+  blank_keyword_rows?: number[]
+  skipped_blank_keyword_count?: number
   history_column_count: number
   history_headers: string[]
   keyword_preview: string[]
@@ -272,6 +286,10 @@ export interface RankJobSummary {
   detail_file?: string
   sheet_name?: string
   new_date_column?: string
+  queryable_keyword_count?: number
+  data_row_count?: number
+  blank_keyword_rows?: number[]
+  skipped_blank_keyword_count?: number
   keyword_count?: number
   template_preview?: RankTemplatePreview
   matrix?: {

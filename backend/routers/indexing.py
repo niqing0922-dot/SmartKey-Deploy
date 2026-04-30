@@ -10,7 +10,15 @@ from pydantic import BaseModel, Field
 
 from backend.config import get_app_settings
 from backend.observability import api_error, api_ok, log_domain_event
-from backend.repositories.indexing import create_indexing_job, list_indexing_jobs, list_indexing_pages
+from backend.db import make_id
+from backend.repositories.indexing import (
+    create_indexing_job,
+    create_prepare_batch,
+    get_prepare_batch,
+    list_indexing_jobs,
+    list_indexing_pages,
+    list_prepare_batches,
+)
 from backend.repositories.settings import get_runtime_settings
 from backend.services.indexing_prepare import prepare_search_console_export
 
@@ -32,6 +40,8 @@ class IndexingRunPayload(BaseModel):
     credentials_path: str = ""
     submission_type: str = "URL_UPDATED"
     max_retries: int = 3
+    source_batch_id: str = ""
+    source_filenames: list[str] = Field(default_factory=list)
 
 
 class IndexingPrepareSource(BaseModel):
@@ -74,21 +84,40 @@ def prepare_indexing_sources(payload: IndexingPreparePayload, request: Request):
     if not payload.sources:
         api_error(status_code=400, code="invalid_input", message="Please upload at least one source file.", request=request)
     try:
-        result = prepare_search_console_export([item.model_dump() for item in payload.sources])
+        batch_id = make_id()
+        result = prepare_search_console_export([item.model_dump() for item in payload.sources], batch_id=batch_id)
+        batch = create_prepare_batch(result, batch_id=batch_id)
         log_domain_event(
             "adapter.indexing.prepare",
             request=request,
             meta={
                 "source_count": len(payload.sources),
+                "batch_id": batch["id"],
                 "submit_ready": result["counts"]["submit_ready"],
                 "excluded": result["counts"]["excluded"],
             },
         )
-        return api_ok(request, status="prepared", **result)
+        response_payload = dict(batch)
+        response_payload["batch_id"] = batch["id"]
+        response_payload.pop("status", None)
+        return api_ok(request, status="prepared", **response_payload)
     except HTTPException:
         raise
     except Exception as exc:
         api_error(status_code=400, code="invalid_input", message=str(exc), request=request)
+
+
+@router.get("/prepare-batches")
+def get_prepare_batches(request: Request, limit: int = 20):
+    return api_ok(request, items=list_prepare_batches(limit))
+
+
+@router.get("/prepare-batches/{batch_id}")
+def get_prepare_batch_detail(batch_id: str, request: Request):
+    batch = get_prepare_batch(batch_id)
+    if not batch:
+        api_error(status_code=404, code="not_found", message="Prepare batch not found.", request=request)
+    return api_ok(request, item=batch)
 
 
 def run_indexing_runner(payload: dict[str, Any], python_command: str) -> dict[str, Any]:
@@ -115,7 +144,7 @@ def get_indexing_jobs(request: Request):
     credentials_path = str(settings.get("google_credentials_path") or "").strip()
     credentials_ready = bool(credentials_path) and Path(credentials_path).exists() and bool(settings.get("indexing_enabled"))
     if not credentials_ready:
-        return api_ok(request, status="configuration_required", items=jobs, message="Indexing requires enabled Google credentials in Settings.")
+        return api_ok(request, status="configuration_required", items=jobs, message="请先在设置页配置 Google 凭证并启用收录模块。")
     return api_ok(request, status="ready", items=jobs)
 
 
@@ -168,6 +197,8 @@ def run_indexing_job(payload: IndexingRunPayload, request: Request):
         "indexingKeyFile": credentials_path,
         "submissionType": payload.submission_type.strip().upper() or "URL_UPDATED",
         "maxRetries": max(1, int(payload.max_retries)),
+        "sourceBatchId": payload.source_batch_id.strip(),
+        "sourceFilenames": payload.source_filenames,
     }
 
     if action == "inspect" and not runner_payload["siteUrl"]:

@@ -1,6 +1,6 @@
 {
   "installCommand": "npm ci && npm --prefix frontend ci",
-  "buildCommand": "npm run build:frontend",
+  "buildCommand": "VITE_PUBLIC_SHOWCASE_ONLY=1 npm run build:frontend",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {

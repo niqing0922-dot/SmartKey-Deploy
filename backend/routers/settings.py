@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+from backend.auth import require_cloud_context
 from backend.observability import api_ok, log_domain_event
-from backend.repositories.settings import get_runtime_settings, public_settings, save_settings
+from backend.repositories import cloud
+from backend.repositories.settings import public_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -48,14 +50,15 @@ class SettingsPayload(BaseModel):
 
 @router.get("")
 def read_settings(request: Request):
-    runtime = get_runtime_settings()
+    ctx = require_cloud_context(request)
+    runtime = cloud.get_settings(ctx)
     return api_ok(request, settings=public_settings(runtime, runtime_settings=runtime))
 
 
 @router.post("")
 def write_settings(payload: SettingsPayload, request: Request):
+    ctx = require_cloud_context(request)
     patch = payload.model_dump(exclude_none=True)
-    save_settings(patch)
-    runtime = get_runtime_settings()
+    runtime = cloud.save_settings(ctx, patch)
     log_domain_event("settings.save", request=request, meta={"keys": sorted(patch.keys())})
     return api_ok(request, settings=public_settings(runtime, runtime_settings=runtime))

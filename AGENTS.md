@@ -2,12 +2,12 @@
 
 ## Project Mission
 
-This repository is being rebuilt into a local-first single-user SEO and GEO workbench.
+This repository is being rebuilt into a cloud-collaborative SEO and GEO workbench with local-only rank and indexing job history.
 
 All implementation work must support these goals:
 
-- no login-first flow
-- stable local usability
+- login-first cloud workspace flow
+- stable cloud usability with local rank/indexing adapters
 - UI rebuilt to match the provided `index.html` style direction
 - core workflow first, optional external integrations second
 
@@ -20,7 +20,7 @@ Implement in this order:
 3. keyword library
 4. articles
 5. GEO writer
-6. local data
+6. cloud data migration
 7. settings
 8. optional AI, rank, and indexing modules
 
@@ -40,14 +40,15 @@ Do not start with ranking, indexing, or advanced integrations before the core pr
 
 - keep routes thin
 - move reusable business logic into services
-- treat SQLite as the local source of truth
+- treat Supabase Postgres as the source of truth for keywords, articles, GEO drafts, and shared settings
+- keep ranking and indexing job history in local SQLite
 - isolate external integrations so they cannot break core app usage
 
 ## Authentication Rules
 
-- do not require login or registration for the rebuilt app
-- do not reintroduce protected-route gating into the default product flow
-- do not make local usage depend on auth token storage
+- require Supabase Auth for the default collaborative product flow
+- protect core routes behind a valid cloud session and workspace
+- do not call business data tables directly from the frontend
 
 Legacy auth code may remain temporarily during migration, but new work should not depend on it.
 
@@ -100,7 +101,7 @@ Keep work grouped by domain:
 - keywords
 - articles
 - geo writer
-- local data
+- cloud data migration
 - settings
 - optional rank/indexing integrations
 
@@ -122,9 +123,9 @@ Do not mix unrelated concerns into one large route or page file.
 
 ## Data Rules
 
-- keep product data local
-- prefer SQLite for persistent entities
-- support export, import, backup, and reset as first-class product capabilities
+- store core product data in Supabase Postgres
+- keep rank and indexing operational history local
+- support import from legacy local snapshots into the active cloud workspace
 - add `geo_article_drafts` and `app_settings` when implementing rebuilt data flows
 
 ## Build and Test Rules
@@ -156,10 +157,10 @@ When unsure, favor:
 
 The current rebuild target is:
 
-- direct entry into the app without login
+- login-first entry into a cloud workspace
 - HTML-style shell and UI system
 - usable keyword and article workflows
 - new GEO writer workflow
-- stable local data management
+- cloud data management with local rank/indexing history
 
 All new implementation work should be judged against that target.

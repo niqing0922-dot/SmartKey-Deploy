@@ -1,5 +1,3 @@
-import { chromium } from 'playwright'
-
 const baseUrl = process.env.BASE_URL || 'http://127.0.0.1:3000'
 
 async function main() {
@@ -17,12 +15,6 @@ async function main() {
     serpapi: Boolean(settings.serpapi_key_configured),
     indexing: Boolean(settings.google_credentials_path_configured),
   }
-
-  const browser = await chromium.launch()
-  const page = await browser.newPage()
-  await page.goto(`${baseUrl}/settings`, { waitUntil: 'domcontentloaded' })
-  await page.getByTestId('settings-save').waitFor({ timeout: 10000 })
-  await browser.close()
 
   console.log(JSON.stringify({ baseUrl, configured }, null, 2))
 }

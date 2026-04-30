@@ -280,6 +280,31 @@ def init_db() -> None:
                 raw_json TEXT NOT NULL DEFAULT '{}',
                 created_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS indexing_prepare_batches (
+                id TEXT PRIMARY KEY,
+                status TEXT NOT NULL DEFAULT 'prepared',
+                source_files_json TEXT NOT NULL DEFAULT '[]',
+                ignored_files_json TEXT NOT NULL DEFAULT '[]',
+                metadata_issues_json TEXT NOT NULL DEFAULT '[]',
+                counts_json TEXT NOT NULL DEFAULT '{}',
+                submit_counts_by_issue_json TEXT NOT NULL DEFAULT '{}',
+                excluded_counts_by_reason_json TEXT NOT NULL DEFAULT '{}',
+                generated_files_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS indexing_prepare_items (
+                id TEXT PRIMARY KEY,
+                batch_id TEXT NOT NULL REFERENCES indexing_prepare_batches(id) ON DELETE CASCADE,
+                url TEXT NOT NULL,
+                item_status TEXT NOT NULL,
+                reason TEXT NOT NULL DEFAULT '',
+                reason_label TEXT NOT NULL DEFAULT '',
+                source_file TEXT NOT NULL DEFAULT '',
+                issue TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            );
             """
         )
         row = conn.execute("SELECT id FROM app_settings LIMIT 1").fetchone()
@@ -550,6 +575,8 @@ def list_backups() -> list[dict[str, Any]]:
 
 def reset_local_data(mode: str = "content") -> None:
     with connect() as conn:
+        conn.execute("DELETE FROM indexing_prepare_items")
+        conn.execute("DELETE FROM indexing_prepare_batches")
         conn.execute("DELETE FROM geo_article_drafts")
         conn.execute("DELETE FROM articles")
         conn.execute("DELETE FROM keywords")

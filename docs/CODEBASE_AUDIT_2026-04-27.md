@@ -9,7 +9,7 @@ Audit baseline:
 - Product constraints: `AGENTS.md`, `PRD.md`, `TECH_DESIGN.md`
 - Frontend: `frontend/src`
 - Backend: `backend/main.py`, `backend/routers`, `backend/services`, `backend/db.py`
-- Validation: `tests/api`, `tests/smoke`, `tests/e2e`, `tests/quality`
+- Validation: `tests/api`, `tests/smoke`, `tests/quality`
 
 Audit goal:
 
@@ -62,7 +62,7 @@ Important context:
   - `tests/smoke/prod-smoke.mjs`
   - `tests/quality/theme-consistency-check.mjs`
 - Current behavior:
-  - Fixed: `check:prod` and `check:theme` depend on root `playwright`, while Electron dependencies live under `desktop`.
+  - Historical note: earlier browser checks depended on root browser automation dependencies, while Electron dependencies lived under `desktop`.
   - Fixed: root install no longer depends on the desktop dependency chain.
 - Conflict:
   - Before remediation, this broke the stated priority that Web/FastAPI is the main product path and Electron is not the primary audit target.

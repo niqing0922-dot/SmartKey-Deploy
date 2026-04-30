@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Literal
 
@@ -18,6 +19,7 @@ from backend.repositories.settings import get_runtime_settings
 from backend.services.rank_workbench import preview_rank_template, run_batch_template_tracking, run_single_keyword_tracking
 
 router = APIRouter(prefix="/api/rank", tags=["rank"])
+DEFAULT_RANK_TARGET_DOMAIN = "waveteliot.com"
 
 
 class RankTemplateFile(BaseModel):
@@ -40,11 +42,12 @@ class RankRunPayload(BaseModel):
     hl: str = "en"
     gl: str = ""
     source: str = "manual"
+    date_column_label: str = ""
 
 
 def _require_rank_ready(settings: dict[str, Any], provider: str, request: Request) -> None:
     provider_name = provider.lower().strip() or "serpapi"
-    if provider_name == "serpapi" and (not settings.get("serpapi_key") or not settings.get("serpapi_enabled")):
+    if provider_name == "serpapi" and (not _serpapi_key(settings) or not settings.get("serpapi_enabled")):
         api_error(
             status_code=400,
             code="configuration_required",
@@ -54,15 +57,21 @@ def _require_rank_ready(settings: dict[str, Any], provider: str, request: Reques
         )
 
 
+def _serpapi_key(settings: dict[str, Any]) -> str:
+    return str(settings.get("serpapi_key") or os.getenv("SERPAPI_API_KEY") or "").strip()
+
+
+def _rank_target_domain(settings: dict[str, Any], domain: str = "") -> str:
+    return (domain.strip() or str(settings.get("rank_target_domain") or "").strip() or DEFAULT_RANK_TARGET_DOMAIN)
+
+
 @router.get("/jobs")
 def get_rank_jobs(request: Request):
     settings = get_runtime_settings()
     jobs = list_rank_jobs(20)
-    if not settings.get("serpapi_key") or not settings.get("serpapi_enabled"):
+    if not _serpapi_key(settings) or not settings.get("serpapi_enabled"):
         return api_ok(request, status="configuration_required", items=jobs, message="Ranking requires enabled SerpAPI credentials in Settings.")
-    if not settings.get("rank_target_domain"):
-        return api_ok(request, status="configuration_required", items=jobs, message="Ranking requires a default target domain in Settings.")
-    return api_ok(request, status="ready", items=jobs)
+    return api_ok(request, status="ready", items=jobs, default_domain=_rank_target_domain(settings))
 
 
 @router.post("/template/preview")
@@ -110,7 +119,7 @@ def run_rank_job(payload: RankRunPayload, request: Request):
     provider = payload.provider.lower().strip() or "serpapi"
     _require_rank_ready(settings, provider, request)
 
-    domain = payload.domain.strip() or str(settings.get("rank_target_domain") or "").strip()
+    domain = _rank_target_domain(settings, payload.domain)
     if not domain:
         api_error(
             status_code=400,
@@ -119,7 +128,7 @@ def run_rank_job(payload: RankRunPayload, request: Request):
             request=request,
         )
 
-    serpapi_key = str(settings.get("serpapi_key") or "").strip()
+    serpapi_key = _serpapi_key(settings)
 
     try:
         if payload.mode == "batch_template_run":
@@ -136,6 +145,7 @@ def run_rank_job(payload: RankRunPayload, request: Request):
                 hl=payload.hl.strip() or "en",
                 gl=payload.gl.strip(),
                 api_key=serpapi_key,
+                date_column_label=payload.date_column_label,
             )
             job_payload = {
                 "mode": payload.mode,
@@ -147,6 +157,7 @@ def run_rank_job(payload: RankRunPayload, request: Request):
                 "gl": payload.gl.strip(),
                 "maxPages": max(1, int(payload.max_pages)),
                 "resultsPerRequest": max(10, int(payload.results_per_request)),
+                "dateColumnLabel": payload.date_column_label.strip(),
             }
             job = create_rank_job(job_payload, runner_result)
             return api_ok(

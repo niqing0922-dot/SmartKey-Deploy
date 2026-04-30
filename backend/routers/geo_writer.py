@@ -5,9 +5,9 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from backend.auth import require_cloud_context
 from backend.observability import api_error, api_ok, log_domain_event
-from backend.repositories.articles import create_article
-from backend.repositories.geo_drafts import get_geo_draft, list_geo_drafts, save_geo_draft
+from backend.repositories import cloud
 from backend.repositories.settings import get_runtime_settings
 from backend.services.ai_service import execute
 from backend.services.geo_export import build_docx, build_markdown
@@ -40,11 +40,13 @@ def _safe_filename(title: str, extension: str) -> str:
 
 @router.get("/drafts")
 def get_drafts(request: Request):
-    return api_ok(request, items=list_geo_drafts())
+    ctx = require_cloud_context(request)
+    return api_ok(request, items=cloud.list_geo_drafts(ctx))
 
 
 @router.post("/draft")
 async def create_draft(payload: GeoDraftRequest, request: Request):
+    ctx = require_cloud_context(request)
     if not payload.primary_keyword.strip():
         api_error(status_code=400, code="invalid_input", message="Primary keyword is required.", request=request)
     settings = get_runtime_settings()
@@ -63,7 +65,8 @@ async def create_draft(payload: GeoDraftRequest, request: Request):
         }
     )
     requested_title = payload.title.strip()
-    draft = save_geo_draft(
+    draft = cloud.save_geo_draft(
+        ctx,
         {
             "title": requested_title or (result.get("title_options") or [f"{payload.primary_keyword} guide"])[0],
             "primary_keyword": payload.primary_keyword,
@@ -92,7 +95,8 @@ async def create_draft(payload: GeoDraftRequest, request: Request):
 
 @router.post("/save")
 def save_to_articles(payload: SaveDraftRequest, request: Request):
-    draft = get_geo_draft(payload.draft_id)
+    ctx = require_cloud_context(request)
+    draft = cloud.get_geo_draft(ctx, payload.draft_id)
     if not draft:
         api_error(status_code=404, code="draft_not_found", message="Draft not found.", request=request)
     content_parts = []
@@ -102,16 +106,17 @@ def save_to_articles(payload: SaveDraftRequest, request: Request):
         content_parts.append(f"## {heading}\n\n{body}".strip())
     for item in draft.get("faq", []):
         content_parts.append(f"Q: {item.get('question', '')}\nA: {item.get('answer', '')}".strip())
-    article = create_article({"title": draft["title"], "content": "\n\n".join(content_parts), "status": "draft", "keyword_ids": []})
+    article = cloud.create_article(ctx, {"title": draft["title"], "content": "\n\n".join(content_parts), "status": "draft", "keyword_ids": []})
     draft["status"] = "saved"
-    updated = save_geo_draft(draft)
+    updated = cloud.save_geo_draft(ctx, draft)
     log_domain_event("geo.draft.save", request=request, meta={"draft_id": payload.draft_id, "article_id": article["id"]})
     return api_ok(request, article=article, draft=updated)
 
 
 @router.get("/export/{draft_id}.md")
 def export_markdown(draft_id: str, request: Request):
-    draft = get_geo_draft(draft_id)
+    ctx = require_cloud_context(request)
+    draft = cloud.get_geo_draft(ctx, draft_id)
     if not draft:
         api_error(status_code=404, code="draft_not_found", message="Draft not found.", request=request)
     content = build_markdown(draft).encode("utf-8")
@@ -126,7 +131,8 @@ def export_markdown(draft_id: str, request: Request):
 
 @router.get("/export/{draft_id}.docx")
 def export_docx(draft_id: str, request: Request):
-    draft = get_geo_draft(draft_id)
+    ctx = require_cloud_context(request)
+    draft = cloud.get_geo_draft(ctx, draft_id)
     if not draft:
         api_error(status_code=404, code="draft_not_found", message="Draft not found.", request=request)
     content = build_docx(draft)

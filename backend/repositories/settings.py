@@ -1,3 +1,4 @@
+import os
 from typing import Any
 
 from backend.config import get_app_settings
@@ -21,6 +22,9 @@ from backend.db import (
 def _runtime_overrides() -> dict[str, str]:
     settings = get_app_settings()
     overrides = settings.integration_overrides
+    serpapi_env_key = os.getenv("SERPAPI_API_KEY", "").strip()
+    if serpapi_env_key and "serpapi_key" not in overrides:
+        overrides["serpapi_key"] = serpapi_env_key
     if "rank_target_domain" in overrides:
         overrides["rank_target_domain"] = normalize_domain(overrides["rank_target_domain"])
     return overrides

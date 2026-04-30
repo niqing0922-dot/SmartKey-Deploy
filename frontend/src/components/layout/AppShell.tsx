@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/auth/AuthProvider'
 import { articlesApi, keywordsApi } from '@/services/api'
 import { setUiLanguage, useUiLanguage } from '@/hooks/useUiLanguage'
 import { messages } from '@/i18n/messages'
@@ -83,6 +84,7 @@ function navTestId(path: string) {
 }
 
 export function AppShell() {
+  const auth = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const language = useUiLanguage()
@@ -299,6 +301,14 @@ export function AppShell() {
           <button className="footer-btn" onClick={() => setPaletteOpen(true)}>
             <span>⌘K</span>
             <span className="footer-btn-text">{language === 'zh' ? '打开命令面板' : 'Open command palette'}</span>
+          </button>
+          <div className="cloud-workspace-chip">
+            <strong>{auth.workspace?.name || 'Cloud Workspace'}</strong>
+            <span>{auth.user?.email || ''}</span>
+          </div>
+          <button className="footer-btn" onClick={() => auth.signOut()}>
+            <span>↪</span>
+            <span className="footer-btn-text">{language === 'zh' ? '退出登录' : 'Sign out'}</span>
           </button>
         </div>
       </aside>

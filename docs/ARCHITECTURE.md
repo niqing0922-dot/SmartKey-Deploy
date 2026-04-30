@@ -175,7 +175,7 @@ The project uses multiple test layers:
 - backend syntax checks
 - API tests with isolated SQLite data
 - backend-served production smoke tests
-- Playwright workflow tests
+- browser-free production route smoke checks
 - packaging smoke checks
 - documentation reality checks
 

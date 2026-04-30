@@ -3,7 +3,7 @@ import { settingsApi } from '@/services/api'
 import { useI18n } from '@/i18n/useI18n'
 import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
 import type { AIProvider, SettingsItem } from '@/types'
-import { AI_PROVIDER_GUIDES, INDEXING_GUIDE, SERPAPI_GUIDE } from '@/pages/settingsGuideConfig'
+import { AI_PROVIDER_GUIDES, INDEXING_GUIDE, SERPAPI_GUIDE } from './settingsGuideConfig'
 
 const defaultSettings: SettingsItem = {
   language: 'zh',

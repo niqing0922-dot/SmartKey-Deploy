@@ -109,7 +109,7 @@ def _write_text_file(path: Path, rows: list[str]) -> None:
     path.write_text("\n".join(rows), encoding="utf-8")
 
 
-def prepare_search_console_export(sources: list[dict[str, str]]) -> dict[str, Any]:
+def prepare_search_console_export(sources: list[dict[str, str]], batch_id: str | None = None) -> dict[str, Any]:
     if not sources:
         raise RuntimeError("No source files provided.")
 
@@ -189,8 +189,8 @@ def prepare_search_console_export(sources: list[dict[str, str]]) -> dict[str, An
                 }
             )
 
-    timestamp = _timestamp_slug()
-    output_dir = PREP_OUTPUT_DIR / timestamp
+    output_slug = batch_id or _timestamp_slug()
+    output_dir = PREP_OUTPUT_DIR / output_slug
     output_dir.mkdir(parents=True, exist_ok=True)
 
     merged_path = output_dir / "merged_urls.txt"

@@ -2,6 +2,11 @@ import json
 import sys
 import traceback
 from datetime import datetime
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from backend.services.indexing_core import crawl_site_urls, inspect_urls, load_urls_from_file, submit_urls
 

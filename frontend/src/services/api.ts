@@ -1,5 +1,6 @@
 import axios from 'axios'
-import type { ApiErrorPayload, ArticleItem, DashboardStats, DownloadInfo, GeoDraftItem, ImagePlanItem, IndexingPrepareResult, KeywordItem, RankJobItem, RankResultItem, RankTemplatePreview, ReadinessStatus, RuntimeDiagnostics, SettingsItem, WorkspaceContext, WorkbenchDispatchRequest, WorkbenchDispatchResponse, WorkbenchExecuteRequest, WorkbenchExecuteResponse } from '@/types'
+import type { ApiErrorPayload, ArticleItem, DashboardStats, DownloadInfo, GeoDraftItem, ImagePlanItem, IndexingPrepareBatch, IndexingPrepareResult, KeywordItem, RankJobItem, RankResultItem, RankTemplatePreview, ReadinessStatus, RuntimeDiagnostics, SettingsItem, WorkspaceContext, WorkbenchDispatchRequest, WorkbenchDispatchResponse, WorkbenchExecuteRequest, WorkbenchExecuteResponse } from '@/types'
+import { getAccessToken, getStoredWorkspaceId } from '@/auth/session'
 
 type ApiEnvelope<T> = {
   status: string
@@ -20,10 +21,14 @@ function buildRequestId() {
   return `web_${Math.random().toString(36).slice(2, 10)}`
 }
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   const requestId = buildRequestId()
   config.headers = config.headers ?? {}
   config.headers['x-request-id'] = requestId
+  const token = await getAccessToken()
+  const workspaceId = getStoredWorkspaceId()
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  if (workspaceId) config.headers['x-workspace-id'] = workspaceId
   ;(config as any).metadata = { startedAt: performance.now(), requestId }
   return config
 })
@@ -74,6 +79,17 @@ export const dashboardApi = {
   async getStats() {
     const { data } = await api.get<ApiEnvelope<{ stats: DashboardStats }>>('/dashboard/stats')
     return data.stats
+  },
+}
+
+export const cloudApi = {
+  async bootstrap() {
+    const { data } = await api.get<ApiEnvelope<{ user: { id: string; email: string }; workspace: { id: string; name: string; role: string }; workspaces: Array<{ id: string; name: string; role: string }> }>>('/cloud/bootstrap')
+    return data
+  },
+  async importSnapshot(snapshot: unknown) {
+    const { data } = await api.post<ApiEnvelope<{ result: { imported: Record<string, number>; skipped: number; failed: Array<Record<string, string>> } }>>('/cloud/import', { snapshot })
+    return data.result
   },
 }
 
@@ -224,6 +240,7 @@ export const rankApi = {
     hl?: string
     gl?: string
     source?: string
+    date_column_label?: string
   }) {
     const { data } = await api.post('/rank/jobs/run', payload)
     return data
@@ -246,6 +263,14 @@ export const indexingApi = {
     const { data } = await api.post<ApiEnvelope<IndexingPrepareResult>>('/indexing/prepare', payload)
     return data
   },
+  async prepareBatches() {
+    const { data } = await api.get<ApiEnvelope<{ items: IndexingPrepareBatch[] }>>('/indexing/prepare-batches')
+    return data.items
+  },
+  async prepareBatch(batchId: string) {
+    const { data } = await api.get<ApiEnvelope<{ item: IndexingPrepareBatch }>>(`/indexing/prepare-batches/${batchId}`)
+    return data.item
+  },
   async run(payload: {
     action: 'inspect' | 'submit'
     site_url?: string
@@ -257,6 +282,8 @@ export const indexingApi = {
     credentials_path?: string
     submission_type?: 'URL_UPDATED' | 'URL_DELETED'
     max_retries?: number
+    source_batch_id?: string
+    source_filenames?: string[]
   }) {
     const { data } = await api.post('/indexing/jobs/run', payload)
     return data

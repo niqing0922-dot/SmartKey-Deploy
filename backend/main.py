@@ -11,12 +11,15 @@ from backend.config import get_app_settings
 from backend.db import DB_PATH, init_db
 from backend.observability import api_ok, build_request_id, diagnostics_snapshot, log_domain_event, log_request
 from backend.routers.ai import router as ai_router
+from backend.routers.articles import router as articles_router
+from backend.routers.cloud import router as cloud_router
 from backend.routers.dashboard import router as dashboard_router
-from backend.routers.db import local_router, router as db_router
 from backend.routers.diagnostics import router as diagnostics_router
 from backend.routers.downloads import router as downloads_router
 from backend.routers.geo_writer import router as geo_writer_router
 from backend.routers.indexing import router as indexing_router
+from backend.routers.keywords import router as keywords_router
+from backend.routers.local_data import legacy_db_router, router as local_data_router
 from backend.routers.rank import router as rank_router
 from backend.routers.settings import router as settings_router
 from backend.routers.workbench import router as workbench_router
@@ -33,6 +36,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def register_routers(api: FastAPI) -> None:
+    core_routers = (
+        dashboard_router,
+        keywords_router,
+        articles_router,
+        legacy_db_router,
+        local_data_router,
+        settings_router,
+        geo_writer_router,
+        workbench_router,
+    )
+    optional_integration_routers = (
+        ai_router,
+        rank_router,
+        indexing_router,
+    )
+    system_routers = (
+        cloud_router,
+        diagnostics_router,
+        downloads_router,
+    )
+
+    for router in (*core_routers, *optional_integration_routers, *system_routers):
+        api.include_router(router)
 
 
 @app.middleware("http")
@@ -111,17 +140,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     return response
 
 
-app.include_router(dashboard_router)
-app.include_router(db_router)
-app.include_router(local_router)
-app.include_router(settings_router)
-app.include_router(geo_writer_router)
-app.include_router(ai_router)
-app.include_router(rank_router)
-app.include_router(indexing_router)
-app.include_router(diagnostics_router)
-app.include_router(workbench_router)
-app.include_router(downloads_router)
+register_routers(app)
 
 
 @app.get("/health")

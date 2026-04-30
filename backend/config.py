@@ -27,6 +27,11 @@ class AppSettings(BaseSettings):
     serpapi_key: str = ""
     dataforseo_api_login: str = ""
     dataforseo_api_password: str = ""
+    cloud_enabled: bool = False
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_jwt_secret: str = ""
+    database_url: str = ""
 
     model_config = SettingsConfigDict(env_prefix="SMARTKEY_", extra="ignore")
 

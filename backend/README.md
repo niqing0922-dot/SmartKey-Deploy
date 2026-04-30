@@ -1,6 +1,6 @@
 # SmartKey Backend
 
-The active backend is the FastAPI local-first API. It uses SQLite as the source of truth and does not require login for local usage.
+The active backend is the FastAPI cloud-collaboration API. Keywords, articles, GEO drafts, and shared settings use Supabase/Postgres behind authenticated workspace APIs. Rank and indexing job history remain in local SQLite.
 
 ## Storage
 
@@ -43,4 +43,4 @@ Server default: `http://localhost:3000`
 
 - Ranking and indexing data are stored locally
 - Google-related features still need network access to external APIs
-- If you need to reset local data, stop the server and remove `backend/data/app.db`
+- If you need to reset local rank/indexing history, stop the server and remove `backend/data/app.db`

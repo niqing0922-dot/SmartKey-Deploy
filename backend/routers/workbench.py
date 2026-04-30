@@ -4,11 +4,9 @@ from typing import Any
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
-from backend.db import dashboard_stats
+from backend.auth import require_cloud_context
 from backend.observability import api_error, api_ok, log_domain_event
-from backend.repositories.articles import list_articles
-from backend.repositories.keywords import create_keyword, list_keywords
-from backend.repositories.settings import get_runtime_settings
+from backend.repositories import cloud
 
 router = APIRouter(prefix="/api/workbench", tags=["workbench"])
 
@@ -99,10 +97,11 @@ def _model_name(settings: dict[str, Any], language: str) -> str:
     return "模型未配置" if _is_zh(language) else "Model not configured"
 
 
-def _context_summary(current_route: str, language: str) -> dict[str, Any]:
-    stats = dashboard_stats()
-    articles = list_articles()
-    settings = get_runtime_settings()
+def _context_summary(request: Request, current_route: str, language: str) -> dict[str, Any]:
+    ctx = require_cloud_context(request)
+    stats = cloud.dashboard_stats(ctx)
+    articles = cloud.list_articles(ctx)
+    settings = cloud.get_settings(ctx)
     return {
         "keyword_count": int(stats.get("keywords", {}).get("total") or 0),
         "article_count": len(articles),
@@ -254,13 +253,13 @@ def _dispatch_response(
 
 @router.get("/context")
 def get_workbench_context(request: Request, current_route: str = "/", language: str = "zh"):
-    return api_ok(request, context_summary=_context_summary(current_route, language))
+    return api_ok(request, context_summary=_context_summary(request, current_route, language))
 
 
 @router.post("/dispatch")
 def dispatch_workbench(payload: WorkbenchDispatchPayload, request: Request):
     prompt = payload.prompt.strip()
-    context = _context_summary(payload.current_route, payload.language)
+    context = _context_summary(request, payload.current_route, payload.language)
     is_zh = _is_zh(payload.language)
     topic = _extract_topic(prompt)
 
@@ -490,7 +489,8 @@ def execute_workbench_action(payload: WorkbenchExecutePayload, request: Request)
             details={"action": action.type},
         )
 
-    existing = {item["keyword"].strip().lower() for item in list_keywords()}
+    ctx = require_cloud_context(request)
+    existing = {item["keyword"].strip().lower() for item in cloud.list_keywords(ctx)}
     created: list[dict[str, Any]] = []
     skipped: list[str] = []
 
@@ -502,7 +502,8 @@ def execute_workbench_action(payload: WorkbenchExecutePayload, request: Request)
         if key in existing:
             skipped.append(keyword)
             continue
-        item = create_keyword(
+        item = cloud.create_keyword(
+            ctx,
             {
                 "keyword": keyword,
                 "type": "longtail",
