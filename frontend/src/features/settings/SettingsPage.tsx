@@ -1,9 +1,14 @@
-﻿import { useEffect, useMemo, useState } from 'react'
-import { settingsApi } from '@/services/api'
+import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/auth/AuthProvider'
+import { platformApi, settingsApi } from '@/services/api'
 import { useI18n } from '@/i18n/useI18n'
-import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
-import type { AIProvider, SettingsItem } from '@/types'
-import { AI_PROVIDER_GUIDES, INDEXING_GUIDE, SERPAPI_GUIDE } from './settingsGuideConfig'
+import type { PlatformCapabilities, SettingsItem } from '@/types'
+
+type DesktopUpdateState = {
+  status: string
+  version?: string
+  message?: string
+}
 
 const defaultSettings: SettingsItem = {
   language: 'zh',
@@ -11,544 +16,290 @@ const defaultSettings: SettingsItem = {
   default_tone: 'Professional and clear',
   default_article_type: 'How-to guide',
   default_content_language: 'zh',
-  rank_target_domain: '',
-  default_ai_provider: 'minimax',
-  default_seo_api: 'serpapi',
-  gemini_enabled: false,
-  minimax_enabled: false,
-  openai_enabled: false,
-  anthropic_enabled: false,
-  deepseek_enabled: false,
-  qwen_enabled: false,
-  moonshot_enabled: false,
-  grok_enabled: false,
-  cohere_enabled: false,
-  minimax_api_key: '',
-  gemini_api_key: '',
-  openai_api_key: '',
-  anthropic_api_key: '',
-  deepseek_api_key: '',
-  qwen_api_key: '',
-  moonshot_api_key: '',
-  grok_api_key: '',
-  cohere_api_key: '',
-  serpapi_key: '',
-  serpapi_enabled: false,
-  dataforseo_api_login: '',
-  dataforseo_api_password: '',
-  dataforseo_enabled: false,
-  python_path: '',
-  google_credentials_path: '',
-  indexing_enabled: false,
-  gemini_api_key_configured: false,
-  minimax_api_key_configured: false,
-  openai_api_key_configured: false,
-  anthropic_api_key_configured: false,
-  deepseek_api_key_configured: false,
-  qwen_api_key_configured: false,
-  moonshot_api_key_configured: false,
-  grok_api_key_configured: false,
-  cohere_api_key_configured: false,
-  serpapi_key_configured: false,
-  dataforseo_api_login_configured: false,
-  dataforseo_api_password_configured: false,
-  google_credentials_path_configured: false,
+  ai_available: false,
+  rank_available: false,
+  indexing_available: false,
+  active_ai_model_label: 'Unavailable',
 }
 
-type AiEnabledKey =
-  | 'gemini_enabled'
-  | 'minimax_enabled'
-  | 'openai_enabled'
-  | 'anthropic_enabled'
-  | 'deepseek_enabled'
-  | 'qwen_enabled'
-  | 'moonshot_enabled'
-  | 'grok_enabled'
-  | 'cohere_enabled'
-
-type AiKeyField =
-  | 'gemini_api_key'
-  | 'minimax_api_key'
-  | 'openai_api_key'
-  | 'anthropic_api_key'
-  | 'deepseek_api_key'
-  | 'qwen_api_key'
-  | 'moonshot_api_key'
-  | 'grok_api_key'
-  | 'cohere_api_key'
-
-type AiConfiguredField =
-  | 'gemini_api_key_configured'
-  | 'minimax_api_key_configured'
-  | 'openai_api_key_configured'
-  | 'anthropic_api_key_configured'
-  | 'deepseek_api_key_configured'
-  | 'qwen_api_key_configured'
-  | 'moonshot_api_key_configured'
-  | 'grok_api_key_configured'
-  | 'cohere_api_key_configured'
-
-type AiProviderMeta = {
-  id: AIProvider
-  label: string
-  keyField: AiKeyField
-  configuredField: AiConfiguredField
-  enabledField: AiEnabledKey
+const defaultPlatform: PlatformCapabilities = {
+  ai_available: false,
+  rank_available: false,
+  indexing_available: false,
+  active_ai_model_label: 'Unavailable',
 }
 
-type SettingsSection = 'defaults' | 'ai' | 'seo' | 'indexing'
+const defaultUpdateState: DesktopUpdateState = {
+  status: 'idle',
+  version: '',
+  message: '',
+}
 
-const AI_PROVIDERS: AiProviderMeta[] = [
-  { id: 'gemini', label: 'Google Gemini', keyField: 'gemini_api_key', configuredField: 'gemini_api_key_configured', enabledField: 'gemini_enabled' },
-  { id: 'minimax', label: 'MiniMax', keyField: 'minimax_api_key', configuredField: 'minimax_api_key_configured', enabledField: 'minimax_enabled' },
-  { id: 'openai', label: 'OpenAI', keyField: 'openai_api_key', configuredField: 'openai_api_key_configured', enabledField: 'openai_enabled' },
-  { id: 'anthropic', label: 'Anthropic Claude', keyField: 'anthropic_api_key', configuredField: 'anthropic_api_key_configured', enabledField: 'anthropic_enabled' },
-  { id: 'deepseek', label: 'DeepSeek', keyField: 'deepseek_api_key', configuredField: 'deepseek_api_key_configured', enabledField: 'deepseek_enabled' },
-  { id: 'qwen', label: 'Qwen', keyField: 'qwen_api_key', configuredField: 'qwen_api_key_configured', enabledField: 'qwen_enabled' },
-  { id: 'moonshot', label: 'Moonshot', keyField: 'moonshot_api_key', configuredField: 'moonshot_api_key_configured', enabledField: 'moonshot_enabled' },
-  { id: 'grok', label: 'xAI Grok', keyField: 'grok_api_key', configuredField: 'grok_api_key_configured', enabledField: 'grok_enabled' },
-  { id: 'cohere', label: 'Cohere', keyField: 'cohere_api_key', configuredField: 'cohere_api_key_configured', enabledField: 'cohere_enabled' },
-]
-
-const AI_LABEL: Record<AIProvider, string> = AI_PROVIDERS.reduce((acc, item) => {
-  acc[item.id] = item.label
-  return acc
-}, {} as Record<AIProvider, string>)
-
-function getInitialEnabledAi(settings: SettingsItem): AIProvider | undefined {
-  const active = AI_PROVIDERS.find((item) => Boolean(settings[item.enabledField]))
-  return active?.id
+function ActionIcon({ kind }: { kind: 'update' | 'install' | 'exit' | 'workspace' }) {
+  if (kind === 'workspace') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="15" rx="3" />
+        <path d="M8 21h8" />
+        <path d="M12 19v2" />
+      </svg>
+    )
+  }
+  if (kind === 'install') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3v10" />
+        <path d="m8 9 4 4 4-4" />
+        <path d="M4 17v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1" />
+      </svg>
+    )
+  }
+  if (kind === 'exit') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+        <path d="M16 17l5-5-5-5" />
+        <path d="M21 12H9" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </svg>
+  )
 }
 
 export function SettingsPage() {
-  const { language, t } = useI18n()
-  const copy = t.settings
-  const common = t.common
+  const auth = useAuth()
+  const { language } = useI18n()
+  const runtimeMode = window.smartKeyDesktop?.runtimeConfig?.mode || 'web'
+  const runtimeApiBaseUrl = window.smartKeyDesktop?.runtimeConfig?.apiBaseUrl || ''
 
-  const [settings, setSettings] = useState<SettingsItem>(defaultSettings)
-  const [savedSettings, setSavedSettings] = useState<SettingsItem>(defaultSettings)
+  const [settings, setSettings] = useState<SettingsItem>(auth.bootstrapData?.settings || defaultSettings)
+  const [savedSettings, setSavedSettings] = useState<SettingsItem>(auth.bootstrapData?.settings || defaultSettings)
+  const [platform, setPlatform] = useState<PlatformCapabilities>(auth.bootstrapData?.settings || defaultPlatform)
+  const [updateState, setUpdateState] = useState<DesktopUpdateState>(defaultUpdateState)
   const [message, setMessage] = useState('')
-  const [visible, setVisible] = useState<Record<string, boolean>>({})
-  const [expandedGuide, setExpandedGuide] = useState<Record<string, boolean>>({})
-  const [lastEnabledAiProvider, setLastEnabledAiProvider] = useState<AIProvider | undefined>('minimax')
-  const [focusSection, setFocusSection] = useState('')
-  const [activeSection, setActiveSection] = useState<SettingsSection>('defaults')
-
-  const loadSettings = async () => {
-    const data = await settingsApi.get()
-    setSettings(data)
-    setSavedSettings(data)
-    setMessage('')
-    setLastEnabledAiProvider(getInitialEnabledAi(data) ?? data.default_ai_provider)
-  }
+  const [error, setError] = useState('')
+  const [desktopMessage, setDesktopMessage] = useState('')
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [installingUpdate, setInstallingUpdate] = useState(false)
+  const [quittingApp, setQuittingApp] = useState(false)
 
   useEffect(() => {
-    loadSettings()
-  }, [])
-
-  useEffect(() => {
-    const draft = consumeWorkbenchTaskDraft('settings')
-    if (!draft?.prefill) return
-    if (typeof draft.prefill.section === 'string') {
-      setFocusSection(draft.prefill.section)
-      if (['defaults', 'ai', 'seo', 'indexing'].includes(draft.prefill.section)) {
-        setActiveSection(draft.prefill.section as SettingsSection)
+    const loadData = async () => {
+      try {
+        const [platformStatus, settingsData] = await Promise.all([
+          platformApi.status(),
+          auth.bootstrapData?.settings ? Promise.resolve(auth.bootstrapData.settings) : settingsApi.get(),
+        ])
+        setPlatform(platformStatus.capabilities)
+        setSettings(settingsData)
+        setSavedSettings(settingsData)
+        setError('')
+      } catch (issue: any) {
+        setError(issue?.response?.data?.detail?.message || issue?.message || (language === 'zh' ? '加载设置失败。' : 'Failed to load settings.'))
       }
     }
+
+    void loadData()
+  }, [auth.bootstrapData, language])
+
+  useEffect(() => {
+    if (!window.smartKeyDesktop?.getUpdateState) return
+    window.smartKeyDesktop.getUpdateState()
+      .then((state) => {
+        if (state) setUpdateState(state)
+      })
+      .catch(() => undefined)
   }, [])
+
+  const isDirty = useMemo(() => JSON.stringify({
+    language: settings.language,
+    default_market: settings.default_market,
+    default_tone: settings.default_tone,
+    default_article_type: settings.default_article_type,
+    default_content_language: settings.default_content_language,
+  }) !== JSON.stringify({
+    language: savedSettings.language,
+    default_market: savedSettings.default_market,
+    default_tone: savedSettings.default_tone,
+    default_article_type: savedSettings.default_article_type,
+    default_content_language: savedSettings.default_content_language,
+  }), [savedSettings, settings])
 
   const setPartial = (patch: Partial<SettingsItem>) => {
     setSettings((current) => ({ ...current, ...patch }))
     setMessage('')
+    setError('')
   }
-
-  const setAiEnabled = (providerId: AIProvider, checked: boolean) => {
-    const provider = AI_PROVIDERS.find((item) => item.id === providerId)
-    if (!provider) return
-    if (!checked) {
-      setPartial({ [provider.enabledField]: false } as Partial<SettingsItem>)
-      return
-    }
-    const nextPatch: Partial<SettingsItem> = {}
-    AI_PROVIDERS.forEach((item) => {
-      nextPatch[item.enabledField] = item.id === providerId
-    })
-    setLastEnabledAiProvider(providerId)
-    setPartial(nextPatch)
-  }
-
-  const isConfiguredAi = (item: AiProviderMeta) => Boolean(settings[item.configuredField] || settings[item.keyField])
-  const enabledAiProviders = useMemo(() => AI_PROVIDERS.filter((item) => Boolean(settings[item.enabledField])).map((item) => item.id), [settings])
-  const activeAiProvider = enabledAiProviders.length === 1 ? enabledAiProviders[0] : undefined
-  const aiReadyCount = AI_PROVIDERS.filter((item) => isConfiguredAi(item)).length
-
-  const serpConfigured = Boolean(settings.serpapi_key_configured || settings.serpapi_key)
-  const serpEnabled = Boolean(settings.serpapi_enabled)
-  const rankDomainSet = Boolean(settings.rank_target_domain?.trim())
-  const rankReady = serpConfigured && rankDomainSet
-  const indexingConfigured = Boolean(settings.google_credentials_path_configured || settings.google_credentials_path)
-
-  const enabledButUnconfiguredAi = AI_PROVIDERS
-    .filter((item) => Boolean(settings[item.enabledField]))
-    .filter((item) => !isConfiguredAi(item))
-    .map((item) => item.id)
-
-  const isDirty = JSON.stringify(settings) !== JSON.stringify(savedSettings)
 
   const save = async () => {
-    const saved = await settingsApi.save({
-      ...settings,
-      dataforseo_enabled: false,
-      default_seo_api: 'serpapi',
-      last_enabled_ai_provider: lastEnabledAiProvider,
-      last_enabled_seo_provider: 'serpapi',
-    })
-    setSettings(saved)
-    setSavedSettings(saved)
-    setMessage(copy.saved)
+    try {
+      const saved = await settingsApi.save({
+        language: settings.language,
+        default_market: settings.default_market,
+        default_tone: settings.default_tone,
+        default_article_type: settings.default_article_type,
+        default_content_language: settings.default_content_language,
+      })
+      setSettings(saved)
+      setSavedSettings(saved)
+      auth.mutateBootstrapData((current) => current ? {
+        ...current,
+        settings: saved,
+        sync_meta: { ...current.sync_meta, synced_at: new Date().toISOString() },
+      } : current)
+      setMessage(language === 'zh' ? '设置已保存。' : 'Settings saved.')
+      setError('')
+    } catch (issue: any) {
+      setError(issue?.response?.data?.detail?.message || issue?.message || (language === 'zh' ? '保存设置失败。' : 'Failed to save settings.'))
+    }
   }
 
-  const toggleGuide = (id: string) => {
-    setExpandedGuide((current) => ({ ...current, [id]: !current[id] }))
+  const syncDesktopState = (nextState: DesktopUpdateState, fallbackZh: string, fallbackEn: string) => {
+    setUpdateState(nextState)
+    setDesktopMessage(nextState.message || (language === 'zh' ? fallbackZh : fallbackEn))
   }
 
-  const aiWarningLabels = enabledButUnconfiguredAi.map((id) => AI_LABEL[id]).join(' / ')
-  const sectionItems: Array<{
-    id: SettingsSection
-    label: string
-    desc: string
-    state: 'ready' | 'warn' | 'muted'
-    meta: string
-  }> = [
+  const checkForUpdates = async () => {
+    if (!window.smartKeyDesktop?.checkForUpdates) return
+    setCheckingUpdate(true)
+    setDesktopMessage('')
+    try {
+      const result = await window.smartKeyDesktop.checkForUpdates()
+      syncDesktopState(result, '更新检查已完成。', 'Update check completed.')
+    } catch (issue: any) {
+      setDesktopMessage(issue?.message || (language === 'zh' ? '检查更新失败。' : 'Failed to check for updates.'))
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
+
+  const installUpdate = async () => {
+    if (!window.smartKeyDesktop?.installUpdate) return
+    setInstallingUpdate(true)
+    setDesktopMessage(language === 'zh' ? '正在退出并安装更新...' : 'Closing app to install the update...')
+    try {
+      const result = await window.smartKeyDesktop.installUpdate()
+      syncDesktopState(result, '正在安装更新。', 'Installing update.')
+    } catch (issue: any) {
+      setInstallingUpdate(false)
+      setDesktopMessage(issue?.message || (language === 'zh' ? '安装更新失败。' : 'Failed to install the update.'))
+    }
+  }
+
+  const quitApp = async () => {
+    if (!window.smartKeyDesktop?.quitApp) return
+    setQuittingApp(true)
+    setDesktopMessage(language === 'zh' ? '正在退出应用...' : 'Closing SmartKey...')
+    try {
+      await window.smartKeyDesktop.quitApp()
+    } catch (issue: any) {
+      setQuittingApp(false)
+      setDesktopMessage(issue?.message || (language === 'zh' ? '退出应用失败。' : 'Failed to close SmartKey.'))
+    }
+  }
+
+  const capabilityCards = [
     {
-      id: 'defaults',
-      label: language === 'zh' ? '默认偏好' : 'Defaults',
-      desc: language === 'zh' ? '语言、市场、文章参数' : 'Language, market, article defaults',
-      state: 'ready',
-      meta: language === 'zh' ? '基础' : 'Base',
+      label: 'AI',
+      available: platform.ai_available,
+      detail: platform.ai_available ? platform.active_ai_model_label : (language === 'zh' ? '平台未开放' : 'Unavailable'),
     },
     {
-      id: 'ai',
-      label: language === 'zh' ? 'AI 供应商' : 'AI Providers',
-      desc: language === 'zh' ? '模型启用与 API Key' : 'Models and API keys',
-      state: activeAiProvider ? 'ready' : enabledButUnconfiguredAi.length ? 'warn' : 'muted',
-      meta: activeAiProvider ? AI_LABEL[activeAiProvider] : language === 'zh' ? '未启用' : 'None',
+      label: 'Rank',
+      available: platform.rank_available,
+      detail: platform.rank_available ? (language === 'zh' ? '平台已启用' : 'Platform enabled') : (language === 'zh' ? '平台未开放' : 'Unavailable'),
     },
     {
-      id: 'seo',
-      label: language === 'zh' ? 'SEO / Rank' : 'SEO / Rank',
-      desc: language === 'zh' ? 'SerpAPI 与目标域名' : 'SerpAPI and target domain',
-      state: rankReady ? 'ready' : 'warn',
-      meta: rankReady ? 'OK' : language === 'zh' ? '待配置' : 'Setup',
-    },
-    {
-      id: 'indexing',
-      label: language === 'zh' ? 'Indexing / 本地' : 'Indexing / Local',
-      desc: language === 'zh' ? 'Google 凭证与 Python 路径' : 'Google credentials and Python path',
-      state: indexingConfigured ? 'ready' : 'muted',
-      meta: indexingConfigured ? (language === 'zh' ? '凭证可用' : 'Ready') : (language === 'zh' ? '可选' : 'Optional'),
+      label: 'Indexing',
+      available: platform.indexing_available,
+      detail: platform.indexing_available ? (language === 'zh' ? '平台已启用' : 'Platform enabled') : (language === 'zh' ? '平台未开放' : 'Unavailable'),
     },
   ]
+
+  const runtimeLabel = language === 'zh'
+    ? runtimeMode === 'cloud-api'
+      ? '云端 API'
+      : runtimeMode === 'cloud-web'
+        ? '云端网页'
+        : runtimeMode === 'local'
+          ? '本地内置'
+          : '浏览器'
+    : runtimeMode === 'cloud-api'
+      ? 'Cloud API'
+      : runtimeMode === 'cloud-web'
+        ? 'Cloud Web'
+        : runtimeMode === 'local'
+          ? 'Local Built-in'
+          : 'Browser'
+
+  const updateSummary = updateState.status === 'downloaded'
+    ? (language === 'zh'
+      ? `可用更新 ${updateState.version || ''} 已下载，可立即安装。`
+      : `Update ${updateState.version || ''} is downloaded and ready to install.`)
+    : updateState.status === 'update-available'
+      ? (language === 'zh'
+        ? `发现更新 ${updateState.version || ''}，正在后台下载。`
+        : `Update ${updateState.version || ''} was found and is downloading.`)
+      : updateState.status === 'error'
+        ? (language === 'zh' ? '更新检查失败，请稍后重试。' : 'Update check failed. Please try again.')
+        : (language === 'zh'
+          ? '桌面端会从 GitHub Releases 获取更新。'
+          : 'Desktop updates are delivered through GitHub Releases.')
 
   return (
     <div id="page-settings" className="page page-active">
       <div className="page-header linear-page-header">
         <div>
-          <div className="page-title">{copy.title}</div>
-          <div className="page-desc">{copy.desc}</div>
+          <div className="page-title">{language === 'zh' ? '设置' : 'Settings'}</div>
+          <div className="page-desc">
+            {language === 'zh'
+              ? '这里只保留工作区偏好。AI、Rank 和 Indexing 的凭证与能力状态由平台统一托管。'
+              : 'Only workspace preferences live here. AI, Rank, and Indexing are managed by the platform.'}
+          </div>
         </div>
         <div className="linear-header-meta">
-          <span>{language === 'zh' ? '配置中心' : 'Configuration Center'}</span>
-          <span>{language === 'zh' ? `已就绪 ${aiReadyCount}` : `${aiReadyCount} ready`}</span>
+          <span>{language === 'zh' ? '云工作区模式' : 'Cloud workspace mode'}</span>
+          <span>{isDirty ? (language === 'zh' ? '有未保存更改' : 'Unsaved changes') : (language === 'zh' ? '已同步' : 'Synced')}</span>
         </div>
       </div>
 
-      <div className="page-body linear-workbench settings-linear-workbench settings-provider-workbench">
-        <section className="linear-left">
-          <div className="linear-panel-title">{language === 'zh' ? '配置状态' : 'Status'}</div>
-          <div className="linear-metric-list">
-            <div>
-              <span>{language === 'zh' ? 'AI 可生效模型' : 'AI Ready Models'}</span>
-              <strong>{aiReadyCount} / {AI_PROVIDERS.length}</strong>
-            </div>
-            <div>
-              <span>{language === 'zh' ? '当前生效模型' : 'Active Model'}</span>
-              <strong>{activeAiProvider ? AI_LABEL[activeAiProvider] : language === 'zh' ? '未启用' : 'None'}</strong>
-            </div>
-            <div>
-              <span>{language === 'zh' ? 'Rank Tracking' : 'Rank Tracking'}</span>
-              <strong>{rankReady ? 'OK' : (language === 'zh' ? '待配置' : 'Needs Setup')}</strong>
-            </div>
-            <div>
-              <span>{language === 'zh' ? '未保存更改' : 'Unsaved Changes'}</span>
-              <strong>{isDirty ? (language === 'zh' ? '有' : 'Yes') : (language === 'zh' ? '无' : 'No')}</strong>
-            </div>
-          </div>
-          <div className="settings-section-nav">
-            <div className="linear-panel-title">{language === 'zh' ? '配置分区' : 'Sections'}</div>
-            {sectionItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`settings-section-button ${activeSection === item.id ? 'active' : ''}`}
-                onClick={() => setActiveSection(item.id)}
-              >
-                <span className="settings-section-copy">
-                  <strong>{item.label}</strong>
-                  <small>{item.desc}</small>
-                </span>
-                <span className={`status-chip ${item.state}`}>{item.meta}</span>
-              </button>
+      <div className="page-body linear-workbench settings-linear-workbench">
+        <section className="linear-left settings-side-panel">
+          <div className="linear-panel-title">{language === 'zh' ? '平台能力' : 'Platform Capabilities'}</div>
+          <div className="linear-metric-list settings-capability-list">
+            {capabilityCards.map((item) => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.available ? (language === 'zh' ? '可用' : 'Ready') : (language === 'zh' ? '未开放' : 'Unavailable')}</strong>
+              </div>
             ))}
           </div>
         </section>
 
         <section className="linear-main settings-main-panel">
-          <div className="settings-status-strip">
-            <span className="status-chip ready">{language === 'zh' ? `可生效模型 ${aiReadyCount}` : `Ready Models ${aiReadyCount}`}</span>
-            <span className="status-chip muted">
-              {language === 'zh' ? '当前生效模型：' : 'Active Model: '}
-              {activeAiProvider ? AI_LABEL[activeAiProvider] : language === 'zh' ? '未启用' : 'None'}
-            </span>
-            <span className={rankReady ? 'status-chip ready' : 'status-chip warn'}>
-              Rank: {rankReady ? (language === 'zh' ? '已就绪' : 'Ready') : (language === 'zh' ? '待配置' : 'Needs Setup')}
-            </span>
-            <span className={isDirty ? 'status-chip warn' : 'status-chip muted'}>
-              {isDirty ? (language === 'zh' ? '未保存更改' : 'Unsaved Changes') : (language === 'zh' ? '已保存' : 'Saved')}
-            </span>
-          </div>
+          {message ? <div className="alert alert-success">{message}</div> : null}
+          {error ? <div className="alert alert-warn">{error}</div> : null}
 
-          {message ? <div className="alert alert-success" data-testid="settings-save-success">{message}</div> : null}
-
-          {enabledButUnconfiguredAi.length > 0 ? (
-            <div className="alert alert-warn">
-              {language === 'zh' ? `以下 AI 供应商已启用但未配置 Key：${aiWarningLabels}` : `Enabled AI provider(s) without API key: ${aiWarningLabels}`}
-            </div>
-          ) : null}
-
-          {activeSection === 'defaults' ? (
           <div className="settings-provider-group">
             <div className="settings-group-head">
-              <div className="linear-panel-title">{language === 'zh' ? '默认偏好' : 'Default Preference'}</div>
-            </div>
-            <div className="settings-group-subnote">
-              {language === 'zh' ? '默认值不会覆盖下方启用状态。' : 'Defaults do not override enabled states below.'}
-            </div>
-            <div className="settings-switch-stack">
-              <div className="settings-switch-item">
-                <div>
-                  <div className="settings-switch-title">{language === 'zh' ? '默认 AI 供应商' : 'Default AI Provider'}</div>
-                </div>
-                <div className="settings-pill-row">
-                  {AI_PROVIDERS.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={settings.default_ai_provider === item.id ? 'settings-pill active' : 'settings-pill'}
-                      onClick={() => setPartial({ default_ai_provider: item.id })}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="settings-switch-item">
-                <div>
-                  <div className="settings-switch-title">{language === 'zh' ? '默认 SEO API' : 'Default SEO API'}</div>
-                  <div className="settings-switch-sub">SerpAPI</div>
-                </div>
-                <span className="status-chip ready">SerpAPI</span>
-              </div>
-            </div>
-          </div>
-          ) : null}
-
-          {activeSection === 'ai' ? (
-          <div className={`settings-provider-group ${focusSection === 'ai' ? 'settings-ai-focus' : ''}`}>
-            <div className="settings-group-head">
-              <div className="linear-panel-title">{language === 'zh' ? 'AI 供应商' : 'AI Providers'}</div>
-              <span className="settings-current-badge">
-                {language === 'zh' ? '当前生效：' : 'Active: '}
-                {activeAiProvider ? AI_LABEL[activeAiProvider] : language === 'zh' ? '未启用' : 'None'}
-              </span>
-            </div>
-            <div className="settings-group-subnote">
-              {language === 'zh'
-                ? '只建议同时启用一个默认模型，避免本地工作流里出现不确定切换。'
-                : 'Keep one provider enabled by default so the local workflow stays predictable.'}
-            </div>
-            <div className="form-grid settings-grid-2">
-              {AI_PROVIDERS.map((item) => {
-                const configured = isConfiguredAi(item)
-                const enabled = Boolean(settings[item.enabledField])
-                const guide = AI_PROVIDER_GUIDES[item.id]
-                const guideId = `ai-${item.id}`
-                return (
-                  <div className="field-block settings-provider-card" key={item.id}>
-                    <div className="settings-provider-head">
-                      <label>{item.label}</label>
-                      <label className="sw" title={language === 'zh' ? '启用 / 停用' : 'Enable / Disable'}>
-                        <input type="checkbox" checked={enabled} onChange={(event) => setAiEnabled(item.id, event.target.checked)} />
-                        <span className="sw-track"></span>
-                        <span className="sw-knob"></span>
-                      </label>
-                    </div>
-                    <div className="key-input-wrap">
-                      <input
-                        type={visible[item.keyField] ? 'text' : 'password'}
-                        value={String(settings[item.keyField] || '')}
-                        onChange={(event) => setPartial({ [item.keyField]: event.target.value } as Partial<SettingsItem>)}
-                      />
-                      <button
-                        className="key-toggle"
-                        type="button"
-                        title={copy.toggleMask}
-                        onClick={() => setVisible((current) => ({ ...current, [item.keyField]: !current[item.keyField] }))}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div className="settings-dual-status">
-                      <span className={configured ? 'status-chip ready' : 'status-chip muted'}>
-                        {configured ? copy.effectiveReady : copy.notConfigured}
-                      </span>
-                      <span className={enabled ? 'status-chip ready' : 'status-chip muted'}>
-                        {enabled ? copy.enabled : copy.disabled}
-                      </span>
-                    </div>
-                    <button className="settings-guide-toggle" type="button" onClick={() => toggleGuide(guideId)}>
-                      {copy.howToGetApi}
-                    </button>
-                    {expandedGuide[guideId] ? (
-                      <div className="settings-guide-panel">
-                        <a href={guide.officialUrl} target="_blank" rel="noreferrer" className="settings-guide-link">
-                          {copy.openOfficialSite}
-                        </a>
-                        <div className="settings-guide-note">{language === 'zh' ? '仅前往官方站点' : 'Official site only'}</div>
-                        <div className="settings-guide-list-title">{copy.steps}</div>
-                        <ol>
-                          {guide.steps.map((step) => (
-                            <li key={step}>{step}</li>
-                          ))}
-                        </ol>
-                        <div className="settings-guide-note">Key: {guide.keyHint}</div>
-                        <div className="settings-guide-note">{copy.notes}: {guide.billingNote}</div>
-                      </div>
-                    ) : null}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-          ) : null}
-
-          {activeSection === 'seo' ? (
-          <div className={`settings-provider-group ${focusSection === 'seo' ? 'settings-ai-focus' : ''}`}>
-            <div className="settings-group-head">
-              <div className="linear-panel-title">SEO（SerpAPI）</div>
-              <span className="settings-current-badge">{rankReady ? (language === 'zh' ? 'Rank 已就绪' : 'Rank Ready') : (language === 'zh' ? 'Rank 待配置' : 'Rank Needs Setup')}</span>
-            </div>
-            <div className="settings-group-subnote">
-              {language === 'zh'
-                ? '这是可选模块，不会影响关键词库、文章追踪和 GEO Writer 的本地可用性。'
-                : 'This is optional and does not block the local keyword, article, or GEO Writer workflows.'}
-            </div>
-            <div className="field-block settings-provider-card">
-              <div className="settings-provider-head">
-                <label>SerpAPI</label>
-                <label className="sw" title={language === 'zh' ? '启用 / 停用' : 'Enable / Disable'}>
-                  <input type="checkbox" checked={serpEnabled} onChange={(event) => setPartial({ serpapi_enabled: event.target.checked })} />
-                  <span className="sw-track"></span>
-                  <span className="sw-knob"></span>
-                </label>
-              </div>
-              <div className="key-input-wrap">
-                <input
-                  type={visible.serpapi_key ? 'text' : 'password'}
-                  value={settings.serpapi_key || ''}
-                  onChange={(event) => setPartial({ serpapi_key: event.target.value })}
-                />
-                <button
-                  className="key-toggle"
-                  type="button"
-                  title={copy.toggleMask}
-                  onClick={() => setVisible((current) => ({ ...current, serpapi_key: !current.serpapi_key }))}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                </button>
-              </div>
-              <div className="field-block" style={{ marginTop: 8 }}>
-                <label>{language === 'zh' ? '默认目标域名（Rank）' : 'Default target domain (Rank)'}</label>
-                <input
-                  value={settings.rank_target_domain || ''}
-                  onChange={(event) => setPartial({ rank_target_domain: event.target.value })}
-                  placeholder={language === 'zh' ? '例如：waveteliot.com' : 'e.g. waveteliot.com'}
-                />
-              </div>
-              <div className="settings-dual-status">
-                <span className={serpConfigured ? 'status-chip ready' : 'status-chip muted'}>
-                  {serpConfigured ? copy.effectiveReady : copy.notConfigured}
-                </span>
-                <span className={serpEnabled ? 'status-chip ready' : 'status-chip muted'}>
-                  {serpEnabled ? copy.enabled : copy.disabled}
-                </span>
-                <span className={rankReady ? 'status-chip ready' : 'status-chip warn'}>
-                  {rankReady ? (language === 'zh' ? 'Rank 已就绪' : 'Rank Ready') : (language === 'zh' ? '缺少域名或 API' : 'Missing domain or API')}
-                </span>
-              </div>
-              <button className="settings-guide-toggle" type="button" onClick={() => toggleGuide('seo-serpapi')}>
-                {copy.howToGetApi}
-              </button>
-              {expandedGuide['seo-serpapi'] ? (
-                <div className="settings-guide-panel">
-                  <a href={SERPAPI_GUIDE.officialUrl} target="_blank" rel="noreferrer" className="settings-guide-link">
-                    {copy.openOfficialSite}
-                  </a>
-                  <div className="settings-guide-note">{language === 'zh' ? '仅前往官方站点' : 'Official site only'}</div>
-                  <div className="settings-guide-list-title">{copy.steps}</div>
-                  <ol>
-                    {SERPAPI_GUIDE.steps.map((step) => (
-                      <li key={step}>{step}</li>
-                    ))}
-                  </ol>
-                  <div className="settings-guide-note">Key: {SERPAPI_GUIDE.keyHint}</div>
-                  <div className="settings-guide-note">{copy.notes}: {SERPAPI_GUIDE.billingNote}</div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-          ) : null}
-
-          {activeSection === 'indexing' ? (
-          <div className={`settings-provider-group ${focusSection === 'indexing' ? 'settings-ai-focus' : ''}`}>
-            <div className="settings-group-head">
-              <div className="linear-panel-title">{language === 'zh' ? '本地默认与 Indexing' : 'Local Defaults & Indexing'}</div>
-              <span className="settings-current-badge">
-                {indexingConfigured ? (language === 'zh' ? '凭证已检测' : 'Credentials detected') : (language === 'zh' ? '凭证未配置' : 'Credentials missing')}
-              </span>
-            </div>
-            <div className="settings-group-subnote">
-              {language === 'zh'
-                ? '这里管理语言、默认文章参数、Python 路径与 Google Indexing 凭证。'
-                : 'Manage language, article defaults, Python path, and Google Indexing credentials here.'}
+              <div className="linear-panel-title">{language === 'zh' ? '默认偏好' : 'Workspace Preferences'}</div>
             </div>
             <div className="form-grid settings-grid-2">
               <div className="field-block">
-                <label>{copy.language}</label>
+                <label>{language === 'zh' ? '界面语言' : 'Interface Language'}</label>
                 <select value={settings.language} onChange={(event) => setPartial({ language: event.target.value as 'zh' | 'en' })}>
                   <option value="zh">中文</option>
                   <option value="en">English</option>
                 </select>
               </div>
               <div className="field-block">
-                <label>{copy.defaultContentLanguage}</label>
-                <select value={settings.default_content_language} onChange={(event) => setPartial({ default_content_language: event.target.value as 'zh' | 'en' | 'de' | 'es' | 'fr' })}>
+                <label>{language === 'zh' ? '默认内容语言' : 'Default Content Language'}</label>
+                <select value={settings.default_content_language} onChange={(event) => setPartial({ default_content_language: event.target.value as SettingsItem['default_content_language'] })}>
                   <option value="zh">ZH - 中文</option>
                   <option value="en">EN - English</option>
                   <option value="de">DE - Deutsch</option>
@@ -556,71 +307,115 @@ export function SettingsPage() {
                   <option value="fr">FR - Francais</option>
                 </select>
               </div>
-              <div className="field-block"><label>{copy.defaultMarket}</label><input value={settings.default_market} onChange={(event) => setPartial({ default_market: event.target.value })} /></div>
-              <div className="field-block"><label>{copy.defaultTone}</label><input value={settings.default_tone} onChange={(event) => setPartial({ default_tone: event.target.value })} /></div>
-              <div className="field-block"><label>{copy.defaultArticleType}</label><input value={settings.default_article_type} onChange={(event) => setPartial({ default_article_type: event.target.value })} /></div>
-              <div className="field-block"><label>{copy.pythonPath}</label><input value={settings.python_path} onChange={(event) => setPartial({ python_path: event.target.value })} /></div>
               <div className="field-block">
-                <div className="settings-provider-head">
-                  <label>{copy.googleCreds}</label>
-                  <label className="sw" title={language === 'zh' ? '启用 / 停用' : 'Enable / Disable'}>
-                    <input type="checkbox" checked={Boolean(settings.indexing_enabled)} onChange={(event) => setPartial({ indexing_enabled: event.target.checked })} />
-                    <span className="sw-track"></span>
-                    <span className="sw-knob"></span>
-                  </label>
-                </div>
-                <input value={settings.google_credentials_path} onChange={(event) => setPartial({ google_credentials_path: event.target.value })} />
-                <div className="settings-dual-status">
-                  <span className={indexingConfigured ? 'status-chip ready' : 'status-chip muted'}>
-                    {indexingConfigured ? copy.effectiveReady : copy.notConfigured}
-                  </span>
-                  <span className={settings.indexing_enabled ? 'status-chip ready' : 'status-chip muted'}>
-                    {settings.indexing_enabled ? copy.enabled : copy.disabled}
-                  </span>
-                </div>
-                <button className="settings-guide-toggle" type="button" onClick={() => toggleGuide('indexing-guide')}>
-                  {copy.indexingCredentialsGuideTitle}
-                </button>
-                {expandedGuide['indexing-guide'] ? (
-                  <div className="settings-guide-panel">
-                    <a href={INDEXING_GUIDE.officialUrl} target="_blank" rel="noreferrer" className="settings-guide-link">
-                      {copy.openOfficialSite}
-                    </a>
-                    <div className="settings-guide-note">{language === 'zh' ? '仅前往官方站点' : 'Official site only'}</div>
-                    <div className="settings-guide-list-title">{copy.steps}</div>
-                    <ol>
-                      {INDEXING_GUIDE.steps.map((step) => (
-                        <li key={step}>{step}</li>
-                      ))}
-                    </ol>
-                  </div>
-                ) : null}
+                <label>{language === 'zh' ? '默认市场' : 'Default Market'}</label>
+                <input value={settings.default_market} onChange={(event) => setPartial({ default_market: event.target.value })} />
+              </div>
+              <div className="field-block">
+                <label>{language === 'zh' ? '默认语气' : 'Default Tone'}</label>
+                <input value={settings.default_tone} onChange={(event) => setPartial({ default_tone: event.target.value })} />
+              </div>
+              <div className="field-block">
+                <label>{language === 'zh' ? '默认文章类型' : 'Default Article Type'}</label>
+                <input value={settings.default_article_type} onChange={(event) => setPartial({ default_article_type: event.target.value })} />
               </div>
             </div>
           </div>
-          ) : null}
+
+          <div className="settings-provider-group">
+            <div className="settings-group-head">
+              <div className="linear-panel-title">{language === 'zh' ? '平台状态' : 'Platform Status'}</div>
+            </div>
+            <div className="settings-group-subnote">
+              {language === 'zh'
+                ? '模型切换、凭证托管和能力开关都由平台后台控制，客户端只保留工作区偏好。'
+                : 'Model routing, credentials, and capability switches are handled by the platform. The client only keeps workspace preferences.'}
+            </div>
+            <div className="linear-metric-list">
+              <div>
+                <span>{language === 'zh' ? '当前 AI 模型' : 'Active AI Model'}</span>
+                <strong>{platform.active_ai_model_label}</strong>
+              </div>
+              <div>
+                <span>AI</span>
+                <strong>{platform.ai_available ? (language === 'zh' ? '平台已连接' : 'Platform ready') : (language === 'zh' ? '平台未开放' : 'Unavailable')}</strong>
+              </div>
+              <div>
+                <span>Rank</span>
+                <strong>{platform.rank_available ? (language === 'zh' ? '平台已连接' : 'Platform ready') : (language === 'zh' ? '平台未开放' : 'Unavailable')}</strong>
+              </div>
+              <div>
+                <span>Indexing</span>
+                <strong>{platform.indexing_available ? (language === 'zh' ? '平台已连接' : 'Platform ready') : (language === 'zh' ? '平台未开放' : 'Unavailable')}</strong>
+              </div>
+            </div>
+          </div>
         </section>
 
-        <section className="linear-right">
-          <div className="linear-panel-title">{language === 'zh' ? '操作' : 'Actions'}</div>
-          <div className="linear-inspector-grid">
-            <button className="btn" data-testid="settings-reload" type="button" onClick={loadSettings}>{common.reload}</button>
-            <button className="btn btn-primary" type="button" onClick={save} data-testid="settings-save">{common.save}</button>
-            <div className={isDirty ? 'settings-dirty-tip' : 'muted-text'}>
-              {isDirty ? (language === 'zh' ? '● 未保存更改' : '● Unsaved changes') : (language === 'zh' ? '配置已同步' : 'Settings synced')}
+        <section className="linear-right settings-right-panel">
+          <div className="linear-panel-title">{language === 'zh' ? '工作区' : 'Workspace'}</div>
+          <div className="settings-side-card">
+            <div className="settings-side-card-head">
+              <div className="settings-side-card-icon">
+                <ActionIcon kind="workspace" />
+              </div>
+              <div>
+                <strong>{auth.bootstrapData?.workspace?.name || '-'}</strong>
+                <div className="muted-text">{auth.bootstrapData?.user?.email || '-'}</div>
+              </div>
             </div>
-            {message ? <div className="muted-text">{message}</div> : null}
+            <div className="settings-workspace-meta">
+              <div><span>{language === 'zh' ? '角色' : 'Role'}</span><strong>{auth.bootstrapData?.workspace?.role || '-'}</strong></div>
+              <div><span>{language === 'zh' ? '运行模式' : 'Runtime'}</span><strong>{runtimeLabel}</strong></div>
+            </div>
+            {runtimeApiBaseUrl ? <div className="settings-runtime-url">{runtimeApiBaseUrl}</div> : null}
           </div>
-          <div className="linear-panel-title" style={{ marginTop: 16 }}>{language === 'zh' ? '使用建议' : 'Working Notes'}</div>
-          <div className="ai-home-principles">
-            <div className="ai-home-principle">
-              <strong>{language === 'zh' ? '先保存再测试' : 'Save before testing'}</strong>
-              <span>{language === 'zh' ? '修改 AI、SerpAPI 或 Google 凭证后，先保存设置，再回到对应页面验证。' : 'After updating AI, SerpAPI, or Google credentials, save settings before testing the target workflow.'}</span>
-            </div>
-            <div className="ai-home-principle">
-              <strong>{language === 'zh' ? '核心工作流优先' : 'Core workflow first'}</strong>
-              <span>{language === 'zh' ? '即使不配置可选集成，关键词、文章和 GEO Writer 也应该保持可进入、可编辑。' : 'Even without optional integrations, keywords, articles, and GEO Writer should remain browsable and editable.'}</span>
-            </div>
+
+          <div className="linear-panel-title" style={{ marginTop: 16 }}>{language === 'zh' ? '桌面操作' : 'Desktop Actions'}</div>
+          <div className="settings-side-card settings-side-card-muted">
+            <strong>{language === 'zh' ? '更新入口' : 'Update Entry'}</strong>
+            <span className="muted-text">{desktopMessage || updateSummary}</span>
+          </div>
+
+          <div className="settings-desktop-actions">
+            <button className="settings-action-card" type="button" onClick={() => void checkForUpdates()} disabled={!window.smartKeyDesktop?.checkForUpdates || checkingUpdate || installingUpdate || quittingApp}>
+              <div className="settings-action-card-icon tone-update">
+                <ActionIcon kind="update" />
+              </div>
+              <div className="settings-action-card-copy">
+                <strong>{language === 'zh' ? '检查更新' : 'Check for Updates'}</strong>
+                <span>{language === 'zh' ? '立即检查 GitHub Releases 上的新版本。' : 'Check GitHub Releases for a newer build.'}</span>
+              </div>
+            </button>
+
+            <button className="settings-action-card" type="button" onClick={() => void installUpdate()} disabled={!window.smartKeyDesktop?.installUpdate || checkingUpdate || installingUpdate || quittingApp || (updateState.status !== 'downloaded' && updateState.status !== 'update-available')}>
+              <div className="settings-action-card-icon tone-install">
+                <ActionIcon kind="install" />
+              </div>
+              <div className="settings-action-card-copy">
+                <strong>{language === 'zh' ? '安装更新' : 'Install Update'}</strong>
+                <span>{language === 'zh' ? '检测到新版本后，重启并安装桌面更新。' : 'Restart and install the desktop update when available.'}</span>
+              </div>
+            </button>
+
+            <button className="settings-action-card tone-exit" type="button" onClick={() => void quitApp()} disabled={!window.smartKeyDesktop?.quitApp || checkingUpdate || installingUpdate || quittingApp}>
+              <div className="settings-action-card-icon tone-exit">
+                <ActionIcon kind="exit" />
+              </div>
+              <div className="settings-action-card-copy">
+                <strong>{language === 'zh' ? '退出应用' : 'Exit App'}</strong>
+                <span>{language === 'zh' ? '关闭当前 SmartKey 桌面应用。' : 'Close the current SmartKey desktop app.'}</span>
+              </div>
+            </button>
+          </div>
+
+          <div className="settings-side-actions">
+            <button className="btn" type="button" onClick={() => window.location.reload()}>
+              {language === 'zh' ? '重新加载' : 'Reload'}
+            </button>
+            <button className="btn btn-primary" type="button" onClick={save} disabled={!isDirty}>
+              {language === 'zh' ? '保存设置' : 'Save Settings'}
+            </button>
           </div>
         </section>
       </div>

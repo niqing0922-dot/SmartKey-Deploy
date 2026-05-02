@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/auth/AuthProvider'
 import { Card } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -24,10 +25,11 @@ function readApiError(issue: any, fallback: string) {
 }
 
 export function KeywordsPage() {
+  const auth = useAuth()
   const { t, language } = useI18n()
   const copy = t.keywords
   const common = t.common
-  const [items, setItems] = useState<KeywordItem[]>([])
+  const [items, setItems] = useState<KeywordItem[]>(auth.bootstrapData?.keywords || [])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [type, setType] = useState('')
@@ -42,6 +44,11 @@ export function KeywordsPage() {
   const [error, setError] = useState('')
 
   const load = async () => {
+    if (auth.bootstrapData?.keywords) {
+      setItems(auth.bootstrapData.keywords)
+      setError('')
+      return
+    }
     try {
       const list = await keywordsApi.list()
       setItems(list)
@@ -54,7 +61,7 @@ export function KeywordsPage() {
 
   useEffect(() => {
     load()
-  }, [])
+  }, [auth.bootstrapData])
 
   useEffect(() => {
     const draft = consumeWorkbenchTaskDraft('keywords')
@@ -157,6 +164,11 @@ export function KeywordsPage() {
     try {
       const updated = await keywordsApi.update(id, payload)
       setItems((prev) => prev.map((item) => (item.id === id ? updated : item)))
+      auth.mutateBootstrapData((current) => current ? {
+        ...current,
+        keywords: current.keywords.map((item) => (item.id === id ? updated : item)),
+        sync_meta: { ...current.sync_meta, synced_at: new Date().toISOString() },
+      } : current)
       setError('')
     } catch (issue: any) {
       setError(readApiError(issue, language === 'zh' ? '关键词保存失败。' : 'Failed to save keyword.'))
@@ -170,6 +182,15 @@ export function KeywordsPage() {
     try {
       const item = await keywordsApi.create({ ...emptyForm, keyword })
       setItems((prev) => [item, ...prev])
+      auth.mutateBootstrapData((current) => current ? {
+        ...current,
+        keywords: [item, ...current.keywords],
+        sync_meta: {
+          ...current.sync_meta,
+          synced_at: new Date().toISOString(),
+          counts: { ...current.sync_meta.counts, keywords: current.sync_meta.counts.keywords + 1 },
+        },
+      } : current)
       setSelectedId(item.id)
       setQuickKeyword('')
       setError('')
@@ -194,6 +215,15 @@ export function KeywordsPage() {
     try {
       await keywordsApi.remove(id)
       setItems((prev) => prev.filter((item) => item.id !== id))
+      auth.mutateBootstrapData((current) => current ? {
+        ...current,
+        keywords: current.keywords.filter((item) => item.id !== id),
+        sync_meta: {
+          ...current.sync_meta,
+          synced_at: new Date().toISOString(),
+          counts: { ...current.sync_meta.counts, keywords: Math.max(0, current.sync_meta.counts.keywords - 1) },
+        },
+      } : current)
       setError('')
     } catch (issue: any) {
       setError(readApiError(issue, language === 'zh' ? '关键词删除失败。' : 'Failed to delete keyword.'))

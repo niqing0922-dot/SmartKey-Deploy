@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ApiErrorPayload, ArticleItem, DashboardStats, DownloadInfo, GeoDraftItem, ImagePlanItem, IndexingPrepareBatch, IndexingPrepareResult, KeywordItem, RankJobItem, RankResultItem, RankTemplatePreview, ReadinessStatus, RuntimeDiagnostics, SettingsItem, WorkspaceContext, WorkbenchDispatchRequest, WorkbenchDispatchResponse, WorkbenchExecuteRequest, WorkbenchExecuteResponse } from '@/types'
+import type { ApiErrorPayload, ArticleItem, CloudBootstrapData, DashboardStats, DownloadInfo, GeoDraftItem, ImagePlanItem, IndexingPrepareBatch, IndexingPrepareResult, KeywordItem, PlatformStatusSnapshot, RankJobItem, RankResultItem, RankTemplatePreview, ReadinessStatus, RuntimeDiagnostics, SettingsItem, WorkspaceContext, WorkbenchDispatchRequest, WorkbenchDispatchResponse, WorkbenchExecuteRequest, WorkbenchExecuteResponse } from '@/types'
 import { cloudWorkspaceActive, getAccessToken, getStoredWorkspaceId } from '@/auth/session'
 
 type ApiEnvelope<T> = {
@@ -7,13 +7,25 @@ type ApiEnvelope<T> = {
   request_id: string
 } & T
 
+const DESKTOP_API_BASE_URL =
+  typeof window !== 'undefined' ? String(window.smartKeyDesktop?.runtimeConfig?.apiBaseUrl || '').trim() : ''
+
+const API_BASE_URL = DESKTOP_API_BASE_URL || String(import.meta.env.VITE_API_BASE_URL || '/api').trim() || '/api'
+
+function buildApiUrl(path: string) {
+  if (/^https?:\/\//i.test(API_BASE_URL)) {
+    return `${API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`
+  }
+  return `${API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`
+}
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 })
 
 const diagnosticsApiClient = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -84,12 +96,23 @@ export const dashboardApi = {
 
 export const cloudApi = {
   async bootstrap() {
-    const { data } = await api.get<ApiEnvelope<{ user: { id: string; email: string }; workspace: { id: string; name: string; role: string }; workspaces: Array<{ id: string; name: string; role: string }> }>>('/cloud/bootstrap')
+    const { data } = await api.get<ApiEnvelope<CloudBootstrapData>>('/cloud/bootstrap')
     return data
   },
   async importSnapshot(snapshot: unknown) {
     const { data } = await api.post<ApiEnvelope<{ result: { imported: Record<string, number>; skipped: number; failed: Array<Record<string, string>> } }>>('/cloud/import', { snapshot })
     return data.result
+  },
+}
+
+export const authApi = {
+  async signIn(payload: { email: string; password: string }) {
+    const { data } = await api.post<ApiEnvelope<{ session: Record<string, unknown> }>>('/auth/sign-in', payload)
+    return data.session
+  },
+  async signUp(payload: { email: string; password: string }) {
+    const { data } = await api.post<ApiEnvelope<{ session: Record<string, unknown> }>>('/auth/sign-up', payload)
+    return data.session
   },
 }
 
@@ -187,9 +210,16 @@ export const settingsApi = {
     const { data } = await api.get<ApiEnvelope<{ settings: SettingsItem }>>('/settings')
     return data.settings
   },
-  async save(payload: Partial<SettingsItem> & { last_enabled_ai_provider?: string; last_enabled_seo_provider?: string }) {
+  async save(payload: Partial<SettingsItem>) {
     const { data } = await api.post<ApiEnvelope<{ settings: SettingsItem }>>('/settings', payload)
     return data.settings
+  },
+}
+
+export const platformApi = {
+  async status() {
+    const { data } = await api.get<ApiEnvelope<{ platform: PlatformStatusSnapshot }>>('/platform/status')
+    return data.platform
   },
 }
 
@@ -222,7 +252,7 @@ export const localDataApi = {
 
 export const rankApi = {
   async jobs() {
-    const { data } = await api.get<ApiEnvelope<{ items: RankJobItem[]; message?: string }>>('/rank/jobs')
+    const { data } = await api.get<ApiEnvelope<{ items: RankJobItem[]; message?: string; default_domain?: string }>>('/rank/jobs')
     return data
   },
   async previewTemplate(payload: { file: { filename: string; content_base64: string } }) {
@@ -234,7 +264,6 @@ export const rankApi = {
     template_file?: { filename: string; content_base64: string }
     keywords?: string[]
     domain?: string
-    provider?: string
     max_pages?: number
     results_per_request?: number
     hl?: string
@@ -250,7 +279,7 @@ export const rankApi = {
     return data
   },
   artifactUrl(jobId: string, kind: 'xlsx' | 'csv') {
-    return `/api/rank/jobs/${jobId}/artifacts/${kind}`
+    return buildApiUrl(`/rank/jobs/${jobId}/artifacts/${kind}`)
   },
 }
 
@@ -279,7 +308,6 @@ export const indexingApi = {
     max_pages?: number
     crawl_delay?: number
     check_delay?: number
-    credentials_path?: string
     submission_type?: 'URL_UPDATED' | 'URL_DELETED'
     max_retries?: number
     source_batch_id?: string

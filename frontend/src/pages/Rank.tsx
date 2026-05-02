@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { rankApi, settingsApi } from '@/services/api'
+import { platformApi, rankApi } from '@/services/api'
 import { useI18n } from '@/i18n/useI18n'
 import { Alert, EmptyState } from '@/components/ui/States'
 import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
-import type { RankJobItem, RankMatrixRow, RankResultItem, RankTemplatePreview, SettingsItem } from '@/types'
+import type { PlatformCapabilities, RankJobItem, RankMatrixRow, RankResultItem, RankTemplatePreview } from '@/types'
 
 function fileToBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -29,11 +28,10 @@ const DEFAULT_RANK_DOMAIN = 'waveteliot.com'
 const DEFAULT_DATE_COLUMN = '4.29'
 
 export function RankPage() {
-  const navigate = useNavigate()
   const { t, language } = useI18n()
   const copy = t.rank
 
-  const [settings, setSettings] = useState<SettingsItem | null>(null)
+  const [platform, setPlatform] = useState<PlatformCapabilities | null>(null)
   const [jobs, setJobs] = useState<RankJobItem[]>([])
   const [jobsStatus, setJobsStatus] = useState('')
   const [jobsMessage, setJobsMessage] = useState('')
@@ -50,7 +48,6 @@ export function RankPage() {
 
   const [domain, setDomain] = useState('')
   const [dateColumnLabel, setDateColumnLabel] = useState(DEFAULT_DATE_COLUMN)
-  const [provider, setProvider] = useState('serpapi')
   const [maxPages, setMaxPages] = useState('10')
   const [hl, setHl] = useState('en')
   const [gl, setGl] = useState('us')
@@ -60,8 +57,8 @@ export function RankPage() {
   const [runningSingle, setRunningSingle] = useState(false)
   const [error, setError] = useState('')
 
-  const effectiveDomain = domain.trim() || settings?.rank_target_domain?.trim() || DEFAULT_RANK_DOMAIN
-  const rankReady = Boolean(settings?.serpapi_enabled && settings?.serpapi_key_configured && effectiveDomain)
+  const effectiveDomain = domain.trim() || DEFAULT_RANK_DOMAIN
+  const rankReady = Boolean(platform?.rank_available && effectiveDomain)
 
   const batchJobs = useMemo(
     () => jobs.filter((job) => job.summary?.mode === 'batch_template_run'),
@@ -85,14 +82,14 @@ export function RankPage() {
     setJobs(items)
     setJobsStatus(response?.status || '')
     setJobsMessage(response?.message || '')
+    if (response?.default_domain) setDomain(response.default_domain)
     if (!selectedJobId && items[0]?.id) setSelectedJobId(items[0].id)
   }
 
   useEffect(() => {
-    Promise.all([settingsApi.get(), loadJobs()])
-      .then(([settingsData]) => {
-        setSettings(settingsData)
-        setDomain(settingsData.rank_target_domain || DEFAULT_RANK_DOMAIN)
+    Promise.all([platformApi.status(), loadJobs()])
+      .then(([platformStatus]) => {
+        setPlatform(platformStatus.capabilities)
       })
       .catch((issue: any) => setError(issue?.response?.data?.detail?.message || issue?.message || 'Failed to load rank page'))
   }, [])
@@ -101,7 +98,6 @@ export function RankPage() {
     const draft = consumeWorkbenchTaskDraft('rank-tracker')
     if (draft?.prefill) {
       if (typeof draft.prefill.keyword === 'string') setSingleKeyword(draft.prefill.keyword)
-      if (typeof draft.prefill.provider === 'string') setProvider(draft.prefill.provider)
       return
     }
     const raw = window.localStorage.getItem('smartkey.global.rank')
@@ -153,7 +149,6 @@ export function RankPage() {
         mode: 'batch_template_run',
         template_file: uploadedTemplate,
         domain,
-        provider,
         max_pages: Number(maxPages) || 10,
         results_per_request: 100,
         hl,
@@ -182,7 +177,6 @@ export function RankPage() {
         mode: 'single_keyword_check',
         keywords: [singleKeyword.trim()],
         domain,
-        provider,
         max_pages: Number(maxPages) || 10,
         results_per_request: 100,
         hl,
@@ -218,7 +212,7 @@ export function RankPage() {
         <section className="linear-left rank-v2-left">
           <div className="settings-status-strip" style={{ position: 'static', paddingTop: 0 }}>
             <span className={rankReady ? 'status-chip ready' : 'status-chip warn'}>
-              SerpAPI: {rankReady ? 'Ready' : 'Missing'}
+              Rank: {rankReady ? 'Ready' : 'Unavailable'}
             </span>
             <span className={effectiveDomain ? 'status-chip ready' : 'status-chip warn'}>
               {copy.domain}: {effectiveDomain || '-'}
@@ -227,10 +221,7 @@ export function RankPage() {
 
           {!rankReady ? (
             <Alert tone="warn">
-              <div>{jobsMessage || copy.setupRequired}</div>
-              <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => navigate('/settings')}>
-                {copy.openSettings}
-              </button>
+              <div>{jobsMessage || 'Rank tracking is managed by the platform and is not enabled for this workspace yet.'}</div>
             </Alert>
           ) : null}
 
@@ -293,9 +284,7 @@ export function RankPage() {
               </div>
               <div className="field-block">
                 <label>{copy.provider}</label>
-                <select value={provider} onChange={(event) => setProvider(event.target.value)}>
-                  <option value="serpapi">serpapi</option>
-                </select>
+                <input value="Platform managed" disabled />
               </div>
               <div className="field-block">
                 <label>{copy.pages}</label>

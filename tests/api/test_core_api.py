@@ -50,7 +50,7 @@ async def test_download_metadata_and_file_route(client, tmp_path, monkeypatch):
   assert "SmartKey-portable.zip" in downloaded.headers["content-disposition"]
 
 
-async def test_core_routes_use_local_data_by_default(client):
+async def test_core_routes_require_cloud_session_by_default(client):
   for method, path, kwargs in [
     ("get", "/api/settings", {}),
     ("post", "/api/db/keywords", {"json": {"keyword": "industrial router"}}),
@@ -58,7 +58,8 @@ async def test_core_routes_use_local_data_by_default(client):
     ("post", "/api/workbench/dispatch", {"json": {"prompt": "expand router keywords", "current_route": "/", "language": "en"}}),
   ]:
     response = await getattr(client, method)(path, **kwargs)
-    assert response.status_code == 200
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "cloud_session_required"
 
 
 async def test_cloud_core_routes_require_login_when_configured(client, monkeypatch):
@@ -70,7 +71,8 @@ async def test_cloud_core_routes_require_login_when_configured(client, monkeypat
   get_app_settings.cache_clear()
 
   response = await client.get("/api/settings")
-  assert response.status_code == 200
+  assert response.status_code == 401
+  assert response.json()["error"]["code"] == "cloud_session_required"
 
   monkeypatch.delenv("SMARTKEY_CLOUD_ENABLED", raising=False)
   monkeypatch.delenv("SMARTKEY_DATABASE_URL", raising=False)
@@ -92,9 +94,8 @@ async def test_geo_writer_and_local_data(client):
     "content_language": "en",
     "content_blocks": ["faq"],
   })
-  assert draft.status_code in (200, 400)
-  if draft.status_code == 400:
-    assert draft.json()["error"]["code"] == "configuration_required"
+  assert draft.status_code == 401
+  assert draft.json()["error"]["code"] == "cloud_session_required"
 
   summary = await client.get("/api/local-data/summary")
   assert summary.status_code == 200
@@ -115,18 +116,29 @@ async def test_geo_writer_and_local_data(client):
   assert reset.status_code == 200
 
 
-async def test_optional_adapters_fail_gracefully(client):
+async def test_optional_adapters_fail_gracefully(client, monkeypatch):
+  from backend.config import get_app_settings
+
+  monkeypatch.setenv("SMARTKEY_AI_ENABLED", "false")
+  monkeypatch.setenv("SMARTKEY_RANK_ENABLED", "false")
+  monkeypatch.setenv("SMARTKEY_INDEXING_ENABLED", "false")
+  get_app_settings.cache_clear()
+
   ai = await client.post("/api/ai/recommend", json={"payload": {"topic": "router"}})
-  assert ai.status_code == 400
-  assert ai.json()["error"]["code"] == "configuration_required"
+  assert ai.status_code == 503
+  assert ai.json()["error"]["code"] == "platform_unavailable"
 
   rank = await client.post("/api/rank/jobs/run", json={"keywords": ["industrial router"], "provider": "serpapi"})
-  assert rank.status_code == 400
-  assert rank.json()["error"]["code"] == "configuration_required"
+  assert rank.status_code == 503
+  assert rank.json()["error"]["code"] == "platform_unavailable"
 
   indexing = await client.post("/api/indexing/jobs/run", json={"action": "inspect", "site_url": "https://example.com", "credentials_path": "C:/missing-service-account.json"})
-  assert indexing.status_code == 400
-  assert indexing.json()["error"]["code"] == "configuration_required"
+  assert indexing.status_code == 503
+  assert indexing.json()["error"]["code"] == "platform_unavailable"
+  monkeypatch.delenv("SMARTKEY_AI_ENABLED", raising=False)
+  monkeypatch.delenv("SMARTKEY_RANK_ENABLED", raising=False)
+  monkeypatch.delenv("SMARTKEY_INDEXING_ENABLED", raising=False)
+  get_app_settings.cache_clear()
 
 
 async def test_indexing_prepare_builds_submit_ready_urls(client):

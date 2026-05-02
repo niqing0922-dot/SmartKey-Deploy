@@ -6,7 +6,7 @@ from fastapi import HTTPException, Request
 
 from backend.config import get_app_settings
 from backend.observability import api_error, log_domain_event
-from backend.repositories.settings import get_runtime_settings
+from backend.services.model_routing import platform_capabilities, resolve_model_route
 APP_SETTINGS = get_app_settings()
 
 
@@ -127,12 +127,19 @@ def parse_json_response(text: str, provider: str) -> dict[str, Any]:
         ) from exc
 
 
-async def run_model(provider: str, prompt: str, settings: dict[str, Any], request: Request | None = None) -> dict[str, Any]:
+def _provider_api_key(provider: str) -> str:
+    key_name = f'{provider}_api_key'
+    return str(APP_SETTINGS.ai_provider_keys.get(key_name) or '').strip()
+
+
+async def run_model(route: dict[str, str], prompt: str, request: Request | None = None) -> dict[str, Any]:
+    provider = route['provider']
+    model = route['model']
     if provider == 'gemini':
-        api_key = settings.get('gemini_api_key')
+        api_key = _provider_api_key('gemini')
         if not api_key:
-            api_error(status_code=400, code='configuration_required', message='Gemini API key is not configured.', request=request, details={'provider': 'gemini'})
-        url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}'
+            api_error(status_code=503, code='platform_unavailable', message='AI service is not available right now.', request=request, details={'provider': 'gemini'})
+        url = f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}'
         body = {'contents': [{'parts': [{'text': prompt}]}], 'generationConfig': {'responseMimeType': 'application/json'}}
         try:
             async with httpx.AsyncClient(timeout=APP_SETTINGS.ai_http_timeout_seconds) as client:
@@ -156,11 +163,11 @@ async def run_model(provider: str, prompt: str, settings: dict[str, Any], reques
         return parse_json_response(text, provider)
 
     if provider == 'minimax':
-        api_key = settings.get('minimax_api_key')
+        api_key = _provider_api_key('minimax')
         if not api_key:
-            api_error(status_code=400, code='configuration_required', message='MiniMax API key is not configured.', request=request, details={'provider': 'minimax'})
+            api_error(status_code=503, code='platform_unavailable', message='AI service is not available right now.', request=request, details={'provider': 'minimax'})
         body = {
-            'model': 'MiniMax-M2.7-highspeed',
+            'model': model,
             'messages': [{'role': 'system', 'content': SYSTEM_RULE}, {'role': 'user', 'content': prompt}],
             'stream': False,
             'temperature': 0.3,
@@ -369,9 +376,16 @@ def normalize_result(feature: str, data: dict[str, Any], provider: str, payload:
 
 
 async def execute(feature: str, payload: dict[str, Any], provider_override: str | None = None, request: Request | None = None):
-    settings = get_runtime_settings()
-    provider = provider_override or settings.get('default_ai_provider') or 'gemini'
+    capabilities = platform_capabilities()
+    if not capabilities['ai_available']:
+        api_error(status_code=503, code='platform_unavailable', message='AI service is currently unavailable on this workspace.', request=request)
+    workspace_id = ''
+    if request is not None:
+        workspace_id = (request.headers.get('x-workspace-id') or '').strip()
+    route = resolve_model_route(feature, workspace_id=workspace_id)
+    if provider_override:
+        route = {**route, 'provider': provider_override.strip().lower()}
     prompt = build_prompt(feature, payload)
-    data = await run_model(provider, prompt, settings, request)
-    log_domain_event(f'ai.{feature}', request=request, meta={'provider': provider})
-    return normalize_result(feature, data, provider, payload)
+    data = await run_model(route, prompt, request)
+    log_domain_event(f'ai.{feature}', request=request, meta={'provider': route['provider'], 'model': route['model']})
+    return normalize_result(feature, data, route['provider'], payload)

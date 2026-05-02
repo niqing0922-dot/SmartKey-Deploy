@@ -3,26 +3,33 @@ import { Badge } from '@/components/ui/Badge'
 import { Card, StatCard } from '@/components/ui/Card'
 import { Alert, EmptyState } from '@/components/ui/States'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { useAuth } from '@/auth/AuthProvider'
 import { dashboardApi } from '@/services/api'
 import { useI18n } from '@/i18n/useI18n'
 import type { DashboardStats, KeywordPriority, KeywordType } from '@/types'
 import { formatDate } from '@/lib/format'
 
 export function DashboardPage() {
+  const auth = useAuth()
   const { t, language } = useI18n()
   const copy = t.dashboard
   const common = t.common
-  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [stats, setStats] = useState<DashboardStats | null>(auth.bootstrapData?.dashboard_stats || null)
   const [error, setError] = useState('')
 
   useEffect(() => {
+    if (auth.bootstrapData?.dashboard_stats) {
+      setStats(auth.bootstrapData.dashboard_stats)
+      setError('')
+      return
+    }
     dashboardApi.getStats()
       .then((nextStats) => {
         setStats(nextStats)
         setError('')
       })
       .catch((issue: any) => setError(issue?.response?.data?.detail?.message || issue?.message || (language === 'zh' ? '部署进度加载失败。' : 'Failed to load dashboard.')))
-  }, [language])
+  }, [auth.bootstrapData, language])
 
   const typeProgress = useMemo(() => {
     const items = stats?.pending_keywords ?? []

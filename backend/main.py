@@ -12,6 +12,7 @@ from backend.db import DB_PATH, init_db
 from backend.observability import api_ok, build_request_id, diagnostics_snapshot, log_domain_event, log_request
 from backend.routers.ai import router as ai_router
 from backend.routers.articles import router as articles_router
+from backend.routers.auth_proxy import router as auth_proxy_router
 from backend.routers.cloud import router as cloud_router
 from backend.routers.dashboard import router as dashboard_router
 from backend.routers.diagnostics import router as diagnostics_router
@@ -20,6 +21,7 @@ from backend.routers.geo_writer import router as geo_writer_router
 from backend.routers.indexing import router as indexing_router
 from backend.routers.keywords import router as keywords_router
 from backend.routers.local_data import legacy_db_router, router as local_data_router
+from backend.routers.platform import router as platform_router
 from backend.routers.rank import router as rank_router
 from backend.routers.settings import router as settings_router
 from backend.routers.workbench import router as workbench_router
@@ -55,9 +57,11 @@ def register_routers(api: FastAPI) -> None:
         indexing_router,
     )
     system_routers = (
+        auth_proxy_router,
         cloud_router,
         diagnostics_router,
         downloads_router,
+        platform_router,
     )
 
     for router in (*core_routers, *optional_integration_routers, *system_routers):

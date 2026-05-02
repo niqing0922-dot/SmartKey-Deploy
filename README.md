@@ -58,13 +58,21 @@ When you run the Electron shell, runtime data is redirected into `%APPDATA%/Smar
 
 ## Local Setup
 
-Install dependencies:
+Install dependencies (recommended minimal installs):
+
+```bash
+cd frontend && npm install
+cd ../desktop && npm install
+python -m pip install -r ../backend/requirements.txt
+```
+
+Optional root install:
 
 ```bash
 npm install
-cd frontend && npm install
-python -m pip install -r ../backend/requirements.txt
 ```
+
+Use root install only when you need root-level scripts that depend on root `node_modules`.
 
 Set Supabase and database variables in `backend/.env` and `frontend/.env` before running the collaborative app. Optional external AI, ranking, or indexing integrations can also be configured through environment variables.
 
@@ -82,6 +90,26 @@ Desktop mode:
 npm run desktop
 ```
 
+Desktop runtime modes:
+
+- Default: bundled local backend, bundled local integrations
+- `SMARTKEY_DESKTOP_API_BASE_URL=https://your-api.example.com/api`
+  Use the bundled desktop frontend with a remote API
+- `SMARTKEY_DESKTOP_WEB_URL=https://your-web-app.example.com`
+  Open the hosted web app inside the desktop shell
+
+Shortcuts:
+
+```powershell
+$env:SMARTKEY_DESKTOP_API_BASE_URL="https://your-api.example.com/api"
+npm run desktop:cloud-api
+```
+
+```powershell
+$env:SMARTKEY_DESKTOP_WEB_URL="https://your-web-app.example.com"
+npm run desktop:cloud-web
+```
+
 ## Quality Checks
 
 Fast local feedback:
@@ -95,6 +123,32 @@ Full local gate:
 ```bash
 npm run check:all
 ```
+
+## Reinstall And Cleanup
+
+Clean workspace caches and generated dependencies:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\clean-workspace.ps1
+```
+
+Preview what would be removed:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\clean-workspace.ps1 -DryRun
+```
+
+Cleanup behavior:
+
+- removes `**/node_modules`, `tools/**/.venv`, `.pytest_cache`, `.tmp`
+- keeps the latest `release/*.zip` and matching extracted portable folder by default
+- removes older release outputs
+
+When to run cleanup:
+
+- after packaging tests
+- when local disk usage grows significantly
+- before preparing a clean verification environment
 
 ## Notes
 

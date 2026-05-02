@@ -17,17 +17,18 @@ class DataContext:
 
 
 def get_data_context(request: Request) -> DataContext:
-    """Use local SQLite by default; opt into cloud only with a token and workspace."""
+    """Core product routes require a cloud session when cloud mode is configured."""
+    if not cloud_is_configured():
+        return DataContext(mode="local")
+
     authorization = request.headers.get("authorization", "").strip()
     workspace_id = (request.headers.get("x-workspace-id") or request.query_params.get("workspace_id") or "").strip()
     wants_cloud = authorization.lower().startswith("bearer ") and bool(workspace_id)
     if not wants_cloud:
-        return DataContext(mode="local")
-    if not cloud_is_configured():
         api_error(
-            status_code=503,
-            code="cloud_not_configured",
-            message="Cloud mode requires SMARTKEY_CLOUD_ENABLED, SMARTKEY_DATABASE_URL, and SMARTKEY_SUPABASE_JWT_SECRET.",
+            status_code=401,
+            code="cloud_session_required",
+            message="A cloud session and active workspace are required for this route.",
             request=request,
         )
     return DataContext(mode="cloud", cloud=require_cloud_context(request))

@@ -7,16 +7,21 @@
   "author": "SmartKey",
   "type": "module",
   "scripts": {
+    "branding:icons": "powershell -ExecutionPolicy Bypass -File ./scripts/generate-desktop-icons.ps1",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "python -m uvicorn backend.main:app --host 127.0.0.1 --port 3000 --reload",
     "serve:test": "node ./tests/support/start-backend-test-server.mjs 3000",
     "build": "cd frontend && npm run build",
     "build:frontend": "cd frontend && npm run build",
-    "desktop": "npm run build:frontend && npm --prefix desktop run start",
-    "package:portable": "npm run build:frontend && powershell -ExecutionPolicy Bypass -File ./scripts/package-portable.ps1",
+    "desktop": "npm run branding:icons && npm run build:frontend && npm --prefix desktop run start",
+    "desktop:cloud-api": "powershell -ExecutionPolicy Bypass -File ./scripts/start-desktop-cloud-api.ps1",
+    "desktop:cloud-web": "powershell -ExecutionPolicy Bypass -File ./scripts/start-desktop-cloud-web.ps1",
+    "package:portable": "npm run branding:icons && npm run build:frontend && powershell -ExecutionPolicy Bypass -File ./scripts/package-portable.ps1",
     "smoke:portable": "powershell -ExecutionPolicy Bypass -File ./scripts/smoke-portable.ps1",
-    "package:win": "npm run build:frontend && npm --prefix desktop exec electron-builder -- --projectDir .. --win portable",
+    "package:win": "npm run branding:icons && npm run build:frontend && cd desktop && npm exec electron-builder -- --projectDir .. --win nsis",
+    "package:nsis": "npm run package:win",
+    "package:win-portable": "npm run branding:icons && npm run build:frontend && cd desktop && npm exec electron-builder -- --projectDir .. --win portable",
     "preview": "cd frontend && npm run preview",
     "test:prod-smoke": "node ./tests/smoke/run-prod-smoke.mjs",
     "check:frontend": "npm --prefix frontend run typecheck",
@@ -38,21 +43,34 @@
   "build": {
     "appId": "com.smartkey.deploy",
     "productName": "SmartKey",
+    "electronVersion": "37.4.0",
+    "icon": "desktop/build/icon.ico",
     "directories": {
       "output": "release"
     },
     "files": [
       "desktop/**/*",
       "backend/**/*",
+      "tools/google-indexing/**/*",
       "frontend/dist/**/*",
       "package.json"
     ],
     "asarUnpack": [
       "backend/**/*",
+      "tools/google-indexing/**/*",
       "frontend/dist/**/*"
     ],
     "win": {
+      "icon": "desktop/build/icon.ico",
+      "signAndEditExecutable": false,
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
         {
           "target": "portable",
           "arch": [
@@ -60,6 +78,20 @@
           ]
         }
       ]
-    }
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "niqing0922-dot",
+        "repo": "SmartKey-Deploy"
+      }
+    ]
   }
 }

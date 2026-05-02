@@ -8,15 +8,14 @@ async function main() {
 
   const data = await response.json()
   const settings = data.settings || {}
-  const configured = {
-    minimax: Boolean(settings.minimax_api_key_configured),
-    gemini: Boolean(settings.gemini_api_key_configured),
-    openai: Boolean(settings.openai_api_key_configured),
-    serpapi: Boolean(settings.serpapi_key_configured),
-    indexing: Boolean(settings.google_credentials_path_configured),
+  const platform = {
+    ai: Boolean(settings.ai_available),
+    rank: Boolean(settings.rank_available),
+    indexing: Boolean(settings.indexing_available),
+    activeModel: settings.active_ai_model_label || '',
   }
 
-  console.log(JSON.stringify({ baseUrl, configured }, null, 2))
+  console.log(JSON.stringify({ baseUrl, platform }, null, 2))
 }
 
 main().catch((error) => {

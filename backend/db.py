@@ -17,7 +17,6 @@ BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "app.db"
 LOCAL_USER_ID = "local-user"
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_GOOGLE_CREDENTIALS_PATH = str(REPO_ROOT / "tools" / "google-indexing" / "config" / "service_account.json")
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "language": "zh",
@@ -25,69 +24,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "default_tone": "Professional and clear",
     "default_article_type": "How-to guide",
     "default_content_language": "zh",
-    "rank_target_domain": "",
-    "default_ai_provider": "minimax",
-    "default_seo_api": "serpapi",
-    "gemini_enabled": False,
-    "minimax_enabled": False,
-    "openai_enabled": False,
-    "anthropic_enabled": False,
-    "deepseek_enabled": False,
-    "qwen_enabled": False,
-    "moonshot_enabled": False,
-    "grok_enabled": False,
-    "cohere_enabled": False,
-    "minimax_api_key": "",
-    "gemini_api_key": "",
-    "openai_api_key": "",
-    "anthropic_api_key": "",
-    "deepseek_api_key": "",
-    "qwen_api_key": "",
-    "moonshot_api_key": "",
-    "grok_api_key": "",
-    "cohere_api_key": "",
-    "serpapi_key": "",
-    "serpapi_enabled": True,
-    "dataforseo_api_login": "",
-    "dataforseo_api_password": "",
-    "dataforseo_enabled": False,
-    "python_path": "",
-    "google_credentials_path": DEFAULT_GOOGLE_CREDENTIALS_PATH,
-    "indexing_enabled": True,
 }
 
-AI_PROVIDER_TO_ENABLED_KEY = {
-    "gemini": "gemini_enabled",
-    "minimax": "minimax_enabled",
-    "openai": "openai_enabled",
-    "anthropic": "anthropic_enabled",
-    "deepseek": "deepseek_enabled",
-    "qwen": "qwen_enabled",
-    "moonshot": "moonshot_enabled",
-    "grok": "grok_enabled",
-    "cohere": "cohere_enabled",
-}
-AI_ENABLED_KEYS = list(AI_PROVIDER_TO_ENABLED_KEY.values())
-SEO_PROVIDER_TO_ENABLED_KEY = {
-    "serpapi": "serpapi_enabled",
-    "dataforseo": "dataforseo_enabled",
-}
-SEO_ENABLED_KEYS = list(SEO_PROVIDER_TO_ENABLED_KEY.values())
-SENSITIVE_SETTINGS_KEYS = {
-    "minimax_api_key",
-    "gemini_api_key",
-    "openai_api_key",
-    "anthropic_api_key",
-    "deepseek_api_key",
-    "qwen_api_key",
-    "moonshot_api_key",
-    "grok_api_key",
-    "cohere_api_key",
-    "serpapi_key",
-    "dataforseo_api_login",
-    "dataforseo_api_password",
-    "google_credentials_path",
-}
+AI_PROVIDER_TO_ENABLED_KEY: dict[str, str] = {}
+AI_ENABLED_KEYS: list[str] = []
+SEO_PROVIDER_TO_ENABLED_KEY: dict[str, str] = {}
+SEO_ENABLED_KEYS: list[str] = []
+SENSITIVE_SETTINGS_KEYS: set[str] = set()
 
 
 def now_iso() -> str:
@@ -141,9 +84,6 @@ def normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
     for key in DEFAULT_SETTINGS:
         if key in data and data[key] is not None:
             normalized[key] = data[key]
-    # Backfill legacy empty settings with the bundled indexing credentials path.
-    if not str(normalized.get("google_credentials_path") or "").strip():
-        normalized["google_credentials_path"] = DEFAULT_GOOGLE_CREDENTIALS_PATH
     return normalized
 
 
@@ -480,31 +420,18 @@ def dashboard_stats() -> dict[str, Any]:
     planned = len([item for item in keywords if item["status"] == "planned"])
     pending = len([item for item in keywords if item["status"] == "pending"])
     coverage = round((done / total) * 100) if total else 0
-    from backend.repositories.settings import get_runtime_settings
+    from backend.services.model_routing import platform_capabilities
 
-    settings = get_runtime_settings()
-    ai_key_toggle_pairs = [
-        ("gemini_api_key", "gemini_enabled"),
-        ("minimax_api_key", "minimax_enabled"),
-        ("openai_api_key", "openai_enabled"),
-        ("anthropic_api_key", "anthropic_enabled"),
-        ("deepseek_api_key", "deepseek_enabled"),
-        ("qwen_api_key", "qwen_enabled"),
-        ("moonshot_api_key", "moonshot_enabled"),
-        ("grok_api_key", "grok_enabled"),
-        ("cohere_api_key", "cohere_enabled"),
-    ]
+    capabilities = platform_capabilities()
     return {
         "keywords": {"total": total, "done": done, "planned": planned, "pending": pending, "coverage": coverage},
         "recent_articles": articles[:5],
         "pending_keywords": [item for item in keywords if item["status"] == "pending"][:8],
         "local_data": local_summary,
         "modules": {
-            "ai": any(bool(settings.get(key)) and bool(settings.get(toggle)) for key, toggle in ai_key_toggle_pairs),
-            "rank": (bool(settings.get("serpapi_key")) and bool(settings.get("serpapi_enabled"))) or (
-                bool(settings.get("dataforseo_api_login")) and bool(settings.get("dataforseo_api_password")) and bool(settings.get("dataforseo_enabled"))
-            ),
-            "indexing": bool(settings.get("google_credentials_path")) and bool(settings.get("indexing_enabled")),
+            "ai": bool(capabilities["ai_available"]),
+            "rank": bool(capabilities["rank_available"]),
+            "indexing": bool(capabilities["indexing_available"]),
         },
     }
 

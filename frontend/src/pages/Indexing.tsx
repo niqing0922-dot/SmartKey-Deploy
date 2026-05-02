@@ -1,10 +1,9 @@
 import { useDeferredValue, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Alert, EmptyState } from '@/components/ui/States'
 import { useI18n } from '@/i18n/useI18n'
 import { consumeWorkbenchTaskDraft } from '@/lib/workbenchDrafts'
-import { indexingApi, settingsApi } from '@/services/api'
-import type { IndexingPrepareBatch, IndexingPrepareResult, SettingsItem } from '@/types'
+import { indexingApi, platformApi } from '@/services/api'
+import type { IndexingPrepareBatch, IndexingPrepareResult, PlatformCapabilities } from '@/types'
 
 type IndexingRow = {
   url: string
@@ -107,11 +106,10 @@ function formatDate(value?: string) {
 }
 
 export function IndexingPage() {
-  const navigate = useNavigate()
   const { t } = useI18n()
   const copy = t.indexing
 
-  const [settings, setSettings] = useState<SettingsItem | null>(null)
+  const [platform, setPlatform] = useState<PlatformCapabilities | null>(null)
   const [jobs, setJobs] = useState<IndexingJobItem[]>([])
   const [jobsStatus, setJobsStatus] = useState('')
   const [jobsMessage, setJobsMessage] = useState('')
@@ -146,9 +144,8 @@ export function IndexingPage() {
   const [pageIndex, setPageIndex] = useState(1)
 
   const deferredQuery = useDeferredValue(query)
-  const hasGoogleCreds = Boolean(settings?.google_credentials_path_configured || settings?.google_credentials_path)
-  const indexingEnabled = Boolean(settings?.indexing_enabled)
-  const isReady = hasGoogleCreds && indexingEnabled
+  const indexingAvailable = Boolean(platform?.indexing_available)
+  const isReady = indexingAvailable
   const urls = useMemo(() => uniqueUrls(urlsText.split('\n')), [urlsText])
   const inputSiteUrl = inferSiteUrlFromInput(siteUrl, urls)
   const canRun = isReady && Boolean(inputSiteUrl || urls.length) && !running
@@ -220,8 +217,8 @@ export function IndexingPage() {
     let cancelled = false
     ;(async () => {
       try {
-        const settingData = await settingsApi.get()
-        if (!cancelled) setSettings(settingData)
+        const platformStatus = await platformApi.status()
+        if (!cancelled) setPlatform(platformStatus.capabilities)
       } catch (issue: any) {
         if (!cancelled) setError(readErrorMessage(issue, copy.settingsLoadFailed))
       }
@@ -401,16 +398,15 @@ export function IndexingPage() {
 
       <div className="page-body indexing-workbench-v2">
         <div className="settings-status-strip indexing-status-strip">
-          <span className={hasGoogleCreds ? 'status-chip ready' : 'status-chip warn'}>{copy.credentials}: {hasGoogleCreds ? copy.ready : copy.missing}</span>
-          <span className={indexingEnabled ? 'status-chip ready' : 'status-chip warn'}>{copy.indexing}: {indexingEnabled ? copy.enabled : copy.disabled}</span>
+          <span className={indexingAvailable ? 'status-chip ready' : 'status-chip warn'}>{copy.credentials}: {indexingAvailable ? copy.ready : copy.missing}</span>
+          <span className={indexingAvailable ? 'status-chip ready' : 'status-chip warn'}>{copy.indexing}: {indexingAvailable ? copy.enabled : copy.disabled}</span>
           <span className="status-chip muted">{copy.pendingUrls}{urls.length}</span>
           <span className="status-chip muted">{copy.lastRun}{lastRunAt ? formatDate(lastRunAt) : '-'}</span>
         </div>
 
         {!isReady ? (
           <Alert tone="warn">
-            <div>{copy.setupRequired}</div>
-            <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => navigate('/settings')}>{copy.openSettings}</button>
+            <div>{jobsMessage || 'Google Indexing is managed by the platform and is not enabled for this workspace yet.'}</div>
           </Alert>
         ) : null}
         {notice ? <Alert tone="success">{notice}</Alert> : null}

@@ -1,5 +1,5 @@
 import json
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from typing import Any
 
 import psycopg
@@ -9,6 +9,8 @@ from psycopg.rows import dict_row
 from backend.auth import CloudContext
 from backend.config import get_app_settings
 from backend.db import DEFAULT_SETTINGS, normalize_settings, now_iso
+from backend.repositories.settings import public_settings
+from backend.services.model_routing import platform_capabilities
 
 
 @contextmanager
@@ -33,6 +35,10 @@ def _loads(value: Any, fallback: Any) -> Any:
         return fallback
 
 
+def _conn_scope(conn: psycopg.Connection | None):
+    return nullcontext(conn) if conn is not None else cloud_connect()
+
+
 def _assert_member(conn: psycopg.Connection, ctx: CloudContext) -> None:
     row = conn.execute(
         "SELECT 1 FROM workspace_members WHERE workspace_id = %s AND user_id = %s LIMIT 1",
@@ -45,9 +51,9 @@ def _assert_member(conn: psycopg.Connection, ctx: CloudContext) -> None:
         )
 
 
-def ensure_profile_and_default_workspace(ctx: CloudContext) -> dict[str, Any]:
-    with cloud_connect() as conn:
-        conn.execute(
+def ensure_profile_and_default_workspace(ctx: CloudContext, conn: psycopg.Connection | None = None) -> dict[str, Any]:
+    with _conn_scope(conn) as active_conn:
+        active_conn.execute(
             """
             INSERT INTO profiles (id, email, display_name, created_at, updated_at)
             VALUES (%s, %s, %s, now(), now())
@@ -55,7 +61,7 @@ def ensure_profile_and_default_workspace(ctx: CloudContext) -> dict[str, Any]:
             """,
             (ctx.user_id, ctx.email, ctx.email.split("@")[0] if ctx.email else "SmartKey User"),
         )
-        row = conn.execute(
+        row = active_conn.execute(
             """
             SELECT w.id, w.name, wm.role
             FROM workspaces w
@@ -67,7 +73,7 @@ def ensure_profile_and_default_workspace(ctx: CloudContext) -> dict[str, Any]:
             (ctx.user_id,),
         ).fetchone()
         if not row:
-            row = conn.execute(
+            row = active_conn.execute(
                 """
                 INSERT INTO workspaces (name, created_by, created_at, updated_at)
                 VALUES (%s, %s, now(), now())
@@ -75,7 +81,7 @@ def ensure_profile_and_default_workspace(ctx: CloudContext) -> dict[str, Any]:
                 """,
                 ("SmartKey Workspace", ctx.user_id),
             ).fetchone()
-            conn.execute(
+            active_conn.execute(
                 """
                 INSERT INTO workspace_members (workspace_id, user_id, role, created_at)
                 VALUES (%s, %s, 'owner', now())
@@ -87,10 +93,10 @@ def ensure_profile_and_default_workspace(ctx: CloudContext) -> dict[str, Any]:
         return {"id": str(row["id"]), "name": row["name"], "role": row["role"]}
 
 
-def list_workspaces(ctx: CloudContext) -> list[dict[str, Any]]:
-    ensure_profile_and_default_workspace(ctx)
-    with cloud_connect() as conn:
-        rows = conn.execute(
+def list_workspaces(ctx: CloudContext, conn: psycopg.Connection | None = None) -> list[dict[str, Any]]:
+    with _conn_scope(conn) as active_conn:
+        ensure_profile_and_default_workspace(ctx, active_conn)
+        rows = active_conn.execute(
             """
             SELECT w.id, w.name, wm.role
             FROM workspaces w
@@ -103,7 +109,22 @@ def list_workspaces(ctx: CloudContext) -> list[dict[str, Any]]:
     return [{"id": str(row["id"]), "name": row["name"], "role": row["role"]} for row in rows]
 
 
-def list_keywords(ctx: CloudContext, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def resolve_active_workspace(ctx: CloudContext, preferred_workspace_id: str = "") -> tuple[CloudContext, dict[str, Any], list[dict[str, Any]]]:
+    with cloud_connect() as conn:
+        default_workspace = ensure_profile_and_default_workspace(ctx, conn)
+        workspaces = list_workspaces(ctx, conn)
+        active_workspace = next((item for item in workspaces if item["id"] == preferred_workspace_id), None) or next(
+            (item for item in workspaces if item["id"] == default_workspace["id"]),
+            None,
+        ) or default_workspace
+        return (
+            CloudContext(user_id=ctx.user_id, workspace_id=active_workspace["id"], email=ctx.email),
+            active_workspace,
+            workspaces,
+        )
+
+
+def list_keywords(ctx: CloudContext, filters: dict[str, Any] | None = None, conn: psycopg.Connection | None = None) -> list[dict[str, Any]]:
     filters = filters or {}
     where = ["workspace_id = %s"]
     params: list[Any] = [ctx.workspace_id]
@@ -115,9 +136,9 @@ def list_keywords(ctx: CloudContext, filters: dict[str, Any] | None = None) -> l
     if filters.get("search"):
         where.append("keyword ILIKE %s")
         params.append(f"%{filters['search']}%")
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        rows = conn.execute(
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        rows = active_conn.execute(
             f"""
             SELECT id, keyword, type, priority, status, notes, position, related_article, created_at, updated_at
             FROM keywords
@@ -129,10 +150,10 @@ def list_keywords(ctx: CloudContext, filters: dict[str, Any] | None = None) -> l
     return [{**row, "id": str(row["id"])} for row in rows]
 
 
-def get_keyword(ctx: CloudContext, keyword_id: str) -> dict[str, Any] | None:
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        row = conn.execute(
+def get_keyword(ctx: CloudContext, keyword_id: str, conn: psycopg.Connection | None = None) -> dict[str, Any] | None:
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        row = active_conn.execute(
             """
             SELECT id, keyword, type, priority, status, notes, position, related_article, created_at, updated_at
             FROM keywords WHERE id = %s AND workspace_id = %s
@@ -142,10 +163,10 @@ def get_keyword(ctx: CloudContext, keyword_id: str) -> dict[str, Any] | None:
     return {**row, "id": str(row["id"])} if row else None
 
 
-def create_keyword(ctx: CloudContext, payload: dict[str, Any]) -> dict[str, Any]:
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        row = conn.execute(
+def create_keyword(ctx: CloudContext, payload: dict[str, Any], conn: psycopg.Connection | None = None) -> dict[str, Any]:
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        row = active_conn.execute(
             """
             INSERT INTO keywords (workspace_id, keyword, type, priority, status, notes, position, related_article, created_by, updated_by, created_at, updated_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now(), now())
@@ -167,16 +188,16 @@ def create_keyword(ctx: CloudContext, payload: dict[str, Any]) -> dict[str, Any]
     return {**row, "id": str(row["id"])}
 
 
-def update_keyword(ctx: CloudContext, keyword_id: str, payload: dict[str, Any]) -> dict[str, Any] | None:
-    current = get_keyword(ctx, keyword_id)
+def update_keyword(ctx: CloudContext, keyword_id: str, payload: dict[str, Any], conn: psycopg.Connection | None = None) -> dict[str, Any] | None:
+    current = get_keyword(ctx, keyword_id, conn)
     if not current:
         return None
     for key in ("keyword", "type", "priority", "status", "notes", "position", "related_article"):
         if key in payload and payload[key] is not None:
             current[key] = payload[key]
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        row = conn.execute(
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        row = active_conn.execute(
             """
             UPDATE keywords
             SET keyword=%s, type=%s, priority=%s, status=%s, notes=%s, position=%s, related_article=%s, updated_by=%s, updated_at=now()
@@ -199,10 +220,10 @@ def update_keyword(ctx: CloudContext, keyword_id: str, payload: dict[str, Any]) 
     return {**row, "id": str(row["id"])} if row else None
 
 
-def delete_keyword(ctx: CloudContext, keyword_id: str) -> None:
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        conn.execute("DELETE FROM keywords WHERE id = %s AND workspace_id = %s", (keyword_id, ctx.workspace_id))
+def delete_keyword(ctx: CloudContext, keyword_id: str, conn: psycopg.Connection | None = None) -> None:
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        active_conn.execute("DELETE FROM keywords WHERE id = %s AND workspace_id = %s", (keyword_id, ctx.workspace_id))
 
 
 def _map_article(row: dict[str, Any]) -> dict[str, Any]:
@@ -211,10 +232,10 @@ def _map_article(row: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
-def list_articles(ctx: CloudContext) -> list[dict[str, Any]]:
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        rows = conn.execute(
+def list_articles(ctx: CloudContext, conn: psycopg.Connection | None = None) -> list[dict[str, Any]]:
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        rows = active_conn.execute(
             """
             SELECT id, title, content, status, keyword_ids_json, created_at, updated_at
             FROM articles WHERE workspace_id = %s ORDER BY updated_at DESC
@@ -224,10 +245,10 @@ def list_articles(ctx: CloudContext) -> list[dict[str, Any]]:
     return [_map_article(row) for row in rows]
 
 
-def get_article(ctx: CloudContext, article_id: str) -> dict[str, Any] | None:
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        row = conn.execute(
+def get_article(ctx: CloudContext, article_id: str, conn: psycopg.Connection | None = None) -> dict[str, Any] | None:
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        row = active_conn.execute(
             """
             SELECT id, title, content, status, keyword_ids_json, created_at, updated_at
             FROM articles WHERE id = %s AND workspace_id = %s
@@ -237,10 +258,10 @@ def get_article(ctx: CloudContext, article_id: str) -> dict[str, Any] | None:
     return _map_article(row) if row else None
 
 
-def create_article(ctx: CloudContext, payload: dict[str, Any]) -> dict[str, Any]:
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        row = conn.execute(
+def create_article(ctx: CloudContext, payload: dict[str, Any], conn: psycopg.Connection | None = None) -> dict[str, Any]:
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        row = active_conn.execute(
             """
             INSERT INTO articles (workspace_id, title, content, status, keyword_ids_json, created_by, updated_by, created_at, updated_at)
             VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s, now(), now())
@@ -259,16 +280,16 @@ def create_article(ctx: CloudContext, payload: dict[str, Any]) -> dict[str, Any]
     return _map_article(row)
 
 
-def update_article(ctx: CloudContext, article_id: str, payload: dict[str, Any]) -> dict[str, Any] | None:
-    current = get_article(ctx, article_id)
+def update_article(ctx: CloudContext, article_id: str, payload: dict[str, Any], conn: psycopg.Connection | None = None) -> dict[str, Any] | None:
+    current = get_article(ctx, article_id, conn)
     if not current:
         return None
     for key in ("title", "content", "status", "keyword_ids"):
         if key in payload and payload[key] is not None:
             current[key] = payload[key]
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        row = conn.execute(
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        row = active_conn.execute(
             """
             UPDATE articles
             SET title=%s, content=%s, status=%s, keyword_ids_json=%s::jsonb, updated_by=%s, updated_at=now()
@@ -288,10 +309,10 @@ def update_article(ctx: CloudContext, article_id: str, payload: dict[str, Any]) 
     return _map_article(row) if row else None
 
 
-def delete_article(ctx: CloudContext, article_id: str) -> None:
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        conn.execute("DELETE FROM articles WHERE id = %s AND workspace_id = %s", (article_id, ctx.workspace_id))
+def delete_article(ctx: CloudContext, article_id: str, conn: psycopg.Connection | None = None) -> None:
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        active_conn.execute("DELETE FROM articles WHERE id = %s AND workspace_id = %s", (article_id, ctx.workspace_id))
 
 
 def _map_geo(row: dict[str, Any]) -> dict[str, Any]:
@@ -306,27 +327,27 @@ def _map_geo(row: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
-def list_geo_drafts(ctx: CloudContext) -> list[dict[str, Any]]:
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        rows = conn.execute(
+def list_geo_drafts(ctx: CloudContext, conn: psycopg.Connection | None = None) -> list[dict[str, Any]]:
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        rows = active_conn.execute(
             "SELECT * FROM geo_article_drafts WHERE workspace_id = %s ORDER BY updated_at DESC",
             (ctx.workspace_id,),
         ).fetchall()
     return [_map_geo(row) for row in rows]
 
 
-def get_geo_draft(ctx: CloudContext, draft_id: str) -> dict[str, Any] | None:
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        row = conn.execute(
+def get_geo_draft(ctx: CloudContext, draft_id: str, conn: psycopg.Connection | None = None) -> dict[str, Any] | None:
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        row = active_conn.execute(
             "SELECT * FROM geo_article_drafts WHERE id = %s AND workspace_id = %s",
             (draft_id, ctx.workspace_id),
         ).fetchone()
     return _map_geo(row) if row else None
 
 
-def save_geo_draft(ctx: CloudContext, payload: dict[str, Any]) -> dict[str, Any]:
+def save_geo_draft(ctx: CloudContext, payload: dict[str, Any], conn: psycopg.Connection | None = None) -> dict[str, Any]:
     timestamp = now_iso()
     record = {
         "id": payload.get("id"),
@@ -352,17 +373,17 @@ def save_geo_draft(ctx: CloudContext, payload: dict[str, Any]) -> dict[str, Any]
         "status": payload.get("status", "draft"),
         "created_at": payload.get("created_at") or timestamp,
     }
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
         if record["id"]:
-            exists = conn.execute(
+            exists = active_conn.execute(
                 "SELECT id FROM geo_article_drafts WHERE id = %s AND workspace_id = %s",
                 (record["id"], ctx.workspace_id),
             ).fetchone()
         else:
             exists = None
         if exists:
-            row = conn.execute(
+            row = active_conn.execute(
                 """
                 UPDATE geo_article_drafts
                 SET title=%(title)s, primary_keyword=%(primary_keyword)s, secondary_keywords_json=%(secondary_keywords_json)s::jsonb,
@@ -378,7 +399,7 @@ def save_geo_draft(ctx: CloudContext, payload: dict[str, Any]) -> dict[str, Any]
                 {**record, "updated_by": ctx.user_id},
             ).fetchone()
         else:
-            row = conn.execute(
+            row = active_conn.execute(
                 """
                 INSERT INTO geo_article_drafts (
                     workspace_id, title, primary_keyword, secondary_keywords_json, audience, industry, target_market,
@@ -399,24 +420,24 @@ def save_geo_draft(ctx: CloudContext, payload: dict[str, Any]) -> dict[str, Any]
     return _map_geo(row)
 
 
-def get_settings(ctx: CloudContext) -> dict[str, Any]:
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        row = conn.execute(
+def get_settings(ctx: CloudContext, conn: psycopg.Connection | None = None) -> dict[str, Any]:
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        row = active_conn.execute(
             "SELECT settings_json FROM app_settings WHERE workspace_id = %s LIMIT 1",
             (ctx.workspace_id,),
         ).fetchone()
     return normalize_settings(row["settings_json"] if row else {})
 
 
-def save_settings(ctx: CloudContext, patch: dict[str, Any]) -> dict[str, Any]:
-    current = get_settings(ctx)
+def save_settings(ctx: CloudContext, patch: dict[str, Any], conn: psycopg.Connection | None = None) -> dict[str, Any]:
+    current = get_settings(ctx, conn)
     for key, value in patch.items():
         if key in DEFAULT_SETTINGS and value is not None:
             current[key] = value
-    with cloud_connect() as conn:
-        _assert_member(conn, ctx)
-        conn.execute(
+    with _conn_scope(conn) as active_conn:
+        _assert_member(active_conn, ctx)
+        active_conn.execute(
             """
             INSERT INTO app_settings (workspace_id, settings_json, updated_by, updated_at)
             VALUES (%s, %s::jsonb, %s, now())
@@ -428,20 +449,65 @@ def save_settings(ctx: CloudContext, patch: dict[str, Any]) -> dict[str, Any]:
     return current
 
 
-def dashboard_stats(ctx: CloudContext) -> dict[str, Any]:
-    keywords = list_keywords(ctx)
-    articles = list_articles(ctx)
+def _dashboard_stats_from_lists(keywords: list[dict[str, Any]], articles: list[dict[str, Any]], geo_drafts: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(keywords)
     done = len([item for item in keywords if item["status"] == "done"])
     planned = len([item for item in keywords if item["status"] == "planned"])
     pending = len([item for item in keywords if item["status"] == "pending"])
+    capabilities = platform_capabilities()
     return {
         "keywords": {"total": total, "done": done, "planned": planned, "pending": pending, "coverage": round((done / total) * 100) if total else 0},
         "recent_articles": articles[:5],
         "pending_keywords": [item for item in keywords if item["status"] == "pending"][:8],
-        "local_data": {"database_path": "cloud", "backup_dir": "supabase", "size_bytes": 0, "backup_count": 0, "table_counts": {"keywords": total, "articles": len(articles), "geo_article_drafts": len(list_geo_drafts(ctx))}},
-        "modules": {"ai": False, "rank": False, "indexing": False},
+        "local_data": {"database_path": "cloud", "backup_dir": "supabase", "size_bytes": 0, "backup_count": 0, "table_counts": {"keywords": total, "articles": len(articles), "geo_article_drafts": len(geo_drafts)}},
+        "modules": {
+            "ai": bool(capabilities["ai_available"]),
+            "rank": bool(capabilities["rank_available"]),
+            "indexing": bool(capabilities["indexing_available"]),
+        },
     }
+
+
+def dashboard_stats(ctx: CloudContext) -> dict[str, Any]:
+    with cloud_connect() as conn:
+        keywords = list_keywords(ctx, conn=conn)
+        articles = list_articles(ctx, conn=conn)
+        geo_drafts = list_geo_drafts(ctx, conn=conn)
+        return _dashboard_stats_from_lists(keywords, articles, geo_drafts)
+
+
+def bootstrap_workspace_state(ctx: CloudContext, preferred_workspace_id: str = "") -> dict[str, Any]:
+    with cloud_connect() as conn:
+        default_workspace = ensure_profile_and_default_workspace(ctx, conn)
+        workspaces = list_workspaces(ctx, conn)
+        active_workspace = next((item for item in workspaces if item["id"] == preferred_workspace_id), None) or next(
+            (item for item in workspaces if item["id"] == default_workspace["id"]),
+            None,
+        ) or default_workspace
+        active_ctx = CloudContext(user_id=ctx.user_id, workspace_id=active_workspace["id"], email=ctx.email)
+        keywords = list_keywords(active_ctx, conn=conn)
+        articles = list_articles(active_ctx, conn=conn)
+        geo_drafts = list_geo_drafts(active_ctx, conn=conn)
+        settings = get_settings(active_ctx, conn=conn)
+        synced_at = now_iso()
+        return {
+            "user": {"id": ctx.user_id, "email": ctx.email},
+            "workspace": active_workspace,
+            "workspaces": workspaces,
+            "settings": public_settings(settings, runtime_settings=settings),
+            "keywords": keywords,
+            "articles": articles,
+            "geo_article_drafts": geo_drafts,
+            "dashboard_stats": _dashboard_stats_from_lists(keywords, articles, geo_drafts),
+            "sync_meta": {
+                "synced_at": synced_at,
+                "counts": {
+                    "keywords": len(keywords),
+                    "articles": len(articles),
+                    "geo_article_drafts": len(geo_drafts),
+                },
+            },
+        }
 
 
 def import_snapshot(ctx: CloudContext, snapshot: dict[str, Any]) -> dict[str, Any]:

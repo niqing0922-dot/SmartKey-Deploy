@@ -1,14 +1,8 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 
 $root = Resolve-Path "$PSScriptRoot\.."
-$distSource = Join-Path $root 'desktop\node_modules\electron\dist'
 $releaseRoot = Join-Path $root 'release\SmartKey-portable'
-$appRoot = Join-Path $releaseRoot 'resources\app'
 $zipPath = Join-Path $root 'release\SmartKey-portable.zip'
-
-if (-not (Test-Path $distSource)) {
-  throw "Electron runtime not found at $distSource. Run npm --prefix desktop install before packaging."
-}
 
 if (Test-Path $releaseRoot) {
   Remove-Item -Recurse -Force $releaseRoot
@@ -17,22 +11,26 @@ if (Test-Path $zipPath) {
   Remove-Item -Force $zipPath
 }
 
-New-Item -ItemType Directory -Force $appRoot | Out-Null
-Copy-Item -Recurse -Force "$distSource\*" $releaseRoot
-
-$itemsToCopy = @('desktop', 'backend', 'frontend\dist', 'package.json')
-foreach ($item in $itemsToCopy) {
-  $source = Join-Path $root $item
-  $target = Join-Path $appRoot $item
-  if (Test-Path $source) {
-    if ((Get-Item $source) -is [System.IO.DirectoryInfo]) {
-      Copy-Item -Recurse -Force $source $target
-    } else {
-      New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
-      Copy-Item -Force $source $target
-    }
-  }
+Push-Location (Join-Path $root 'desktop')
+try {
+  & npm exec electron-builder -- --projectDir .. --win portable
+} finally {
+  Pop-Location
 }
+if ($LASTEXITCODE -ne 0) {
+  throw "electron-builder portable packaging failed with exit code $LASTEXITCODE."
+}
+
+$portableExe = Get-ChildItem (Join-Path $root 'release') -Filter '*.exe' |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 1
+
+if (-not $portableExe) {
+  throw 'Portable build output was not found in release\.'
+}
+
+New-Item -ItemType Directory -Force $releaseRoot | Out-Null
+Copy-Item -Force $portableExe.FullName (Join-Path $releaseRoot 'SmartKey.exe')
 
 $readme = @"
 SmartKey Portable
@@ -49,12 +47,7 @@ $releaseRoot
 "@
 Set-Content -Encoding utf8 (Join-Path $releaseRoot 'README.txt') $readme
 
-$electronExe = Join-Path $releaseRoot 'electron.exe'
 $smartKeyExe = Join-Path $releaseRoot 'SmartKey.exe'
-if (Test-Path $electronExe) {
-  Rename-Item -Path $electronExe -NewName 'SmartKey.exe'
-}
-
 Compress-Archive -Path "$releaseRoot\*" -DestinationPath $zipPath -CompressionLevel Optimal
 
 Write-Output "Portable package created at: $releaseRoot"

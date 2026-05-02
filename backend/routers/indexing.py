@@ -19,8 +19,8 @@ from backend.repositories.indexing import (
     list_indexing_pages,
     list_prepare_batches,
 )
-from backend.repositories.settings import get_runtime_settings
 from backend.services.indexing_prepare import prepare_search_console_export
+from backend.services.model_routing import platform_capabilities
 
 router = APIRouter(prefix="/api/indexing", tags=["indexing"])
 APP_SETTINGS = get_app_settings()
@@ -70,13 +70,38 @@ def dedupe_urls(urls: list[str]) -> list[str]:
     output: list[str] = []
     for raw in urls:
         url = (raw or "").strip()
-        if not url:
-            continue
-        if url in seen:
+        if not url or url in seen:
             continue
         seen.add(url)
         output.append(url)
     return output
+
+
+def run_indexing_runner(payload: dict[str, Any], python_command: str) -> dict[str, Any]:
+    completed = subprocess.run(
+        [python_command, str(INDEXING_RUNNER_PATH)],
+        input=json.dumps(payload, ensure_ascii=False),
+        text=True,
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        timeout=APP_SETTINGS.indexing_runner_timeout_seconds,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError((completed.stderr or completed.stdout or "Indexing runner failed").strip())
+    try:
+        return json.loads((completed.stdout or "{}").strip() or "{}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Failed to parse indexing runner output: {exc}") from exc
+
+
+def _require_platform_indexing(request: Request) -> None:
+    if not platform_capabilities()["indexing_available"]:
+        api_error(
+            status_code=503,
+            code="platform_unavailable",
+            message="Google Indexing is not available for this workspace right now.",
+            request=request,
+        )
 
 
 @router.post("/prepare")
@@ -90,12 +115,7 @@ def prepare_indexing_sources(payload: IndexingPreparePayload, request: Request):
         log_domain_event(
             "adapter.indexing.prepare",
             request=request,
-            meta={
-                "source_count": len(payload.sources),
-                "batch_id": batch["id"],
-                "submit_ready": result["counts"]["submit_ready"],
-                "excluded": result["counts"]["excluded"],
-            },
+            meta={"source_count": len(payload.sources), "batch_id": batch["id"], "submit_ready": result["counts"]["submit_ready"], "excluded": result["counts"]["excluded"]},
         )
         response_payload = dict(batch)
         response_payload["batch_id"] = batch["id"]
@@ -120,31 +140,16 @@ def get_prepare_batch_detail(batch_id: str, request: Request):
     return api_ok(request, item=batch)
 
 
-def run_indexing_runner(payload: dict[str, Any], python_command: str) -> dict[str, Any]:
-    completed = subprocess.run(
-        [python_command, str(INDEXING_RUNNER_PATH)],
-        input=json.dumps(payload, ensure_ascii=False),
-        text=True,
-        cwd=str(REPO_ROOT),
-        capture_output=True,
-        timeout=APP_SETTINGS.indexing_runner_timeout_seconds,
-    )
-    if completed.returncode != 0:
-        raise RuntimeError((completed.stderr or completed.stdout or "Indexing runner failed").strip())
-    try:
-        return json.loads((completed.stdout or "{}").strip() or "{}")
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Failed to parse indexing runner output: {exc}") from exc
-
-
 @router.get("/jobs")
 def get_indexing_jobs(request: Request):
-    settings = get_runtime_settings()
     jobs = list_indexing_jobs(20)
-    credentials_path = str(settings.get("google_credentials_path") or "").strip()
-    credentials_ready = bool(credentials_path) and Path(credentials_path).exists() and bool(settings.get("indexing_enabled"))
-    if not credentials_ready:
-        return api_ok(request, status="configuration_required", items=jobs, message="请先在设置页配置 Google 凭证并启用收录模块。")
+    if not platform_capabilities()["indexing_available"]:
+        return api_ok(
+            request,
+            status="platform_unavailable",
+            items=jobs,
+            message="Google Indexing is managed by the platform and is not enabled for this workspace yet.",
+        )
     return api_ok(request, status="ready", items=jobs)
 
 
@@ -155,18 +160,14 @@ def get_indexing_job_pages(job_id: str, request: Request):
 
 @router.post("/jobs/run")
 def run_indexing_job(payload: IndexingRunPayload, request: Request):
-    settings = get_runtime_settings()
-    python_command = (settings.get("python_path") or "").strip() or sys.executable
-    credentials_path = (
-        payload.credentials_path.strip()
-        or (settings.get("google_credentials_path") or "").strip()
-    )
+    _require_platform_indexing(request)
+
+    python_command = APP_SETTINGS.platform_python_command or sys.executable
+    credentials_path = APP_SETTINGS.indexing_service_account_path
     if not credentials_path:
-        api_error(status_code=400, code="configuration_required", message="Google credentials path is not configured in Settings.", request=request)
-    if not settings.get("indexing_enabled"):
-        api_error(status_code=400, code="configuration_required", message="Indexing is disabled in Settings.", request=request)
+        api_error(status_code=503, code="platform_unavailable", message="Google Indexing credentials are not configured on the platform.", request=request)
     if not Path(credentials_path).exists():
-        api_error(status_code=400, code="configuration_required", message="Google credentials file does not exist.", request=request)
+        api_error(status_code=503, code="platform_unavailable", message="Google Indexing credentials are unavailable on the platform runtime.", request=request)
 
     action = (payload.action or "inspect").strip().lower()
     if action not in {"inspect", "submit"}:
@@ -175,7 +176,6 @@ def run_indexing_job(payload: IndexingRunPayload, request: Request):
     raw_site_url = payload.site_url.strip()
     raw_urls = dedupe_urls([item.strip() for item in payload.urls if item and item.strip()])
     raw_url_file_path = payload.url_file_path.strip()
-
     if not raw_site_url and not raw_urls and not raw_url_file_path:
         api_error(status_code=400, code="invalid_input", message="Please provide site_url, urls, or url_file_path.", request=request)
 
@@ -213,12 +213,7 @@ def run_indexing_job(payload: IndexingRunPayload, request: Request):
         return api_ok(
             request,
             status="completed",
-            job={
-                "id": job["id"],
-                "summary": runner_result.get("summary", {}),
-                "started_at": runner_result.get("started_at"),
-                "finished_at": runner_result.get("finished_at"),
-            },
+            job={"id": job["id"], "summary": runner_result.get("summary", {}), "started_at": runner_result.get("started_at"), "finished_at": runner_result.get("finished_at")},
             pages=runner_result.get("pages", []),
             job_id=job["id"],
             summary=runner_result.get("summary", {}),
@@ -228,7 +223,7 @@ def run_indexing_job(payload: IndexingRunPayload, request: Request):
     except subprocess.TimeoutExpired as exc:
         api_error(status_code=504, code="adapter_timeout", message=f"Indexing job timed out: {exc}", request=request, kind="system_failure")
     except FileNotFoundError:
-        api_error(status_code=400, code="configuration_required", message=f"Python executable not found: {python_command}", request=request)
+        api_error(status_code=500, code="system_failure", message=f"Platform Python runtime not found: {python_command}", request=request, kind="system_failure")
     except HTTPException:
         raise
     except Exception as exc:

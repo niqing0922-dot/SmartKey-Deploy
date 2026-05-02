@@ -19,7 +19,41 @@ export function RequireAuth({ children }: { children: React.ReactElement }) {
   }
 
   if (auth.loading) {
-    return <div className="auth-page"><div className="auth-panel"><div className="auth-brand">SmartKey</div><p>Loading workspace...</p></div></div>
+    const copy = auth.bootStatus === 'auth'
+      ? 'Authenticating...'
+      : auth.bootStatus === 'workspace'
+        ? 'Loading workspace...'
+        : 'Syncing cloud data...'
+
+    return (
+      <div className="boot-overlay" data-testid="boot.loading">
+        <div className="boot-panel">
+          <div className="boot-mark">
+            <span className="boot-spinner" />
+            <strong>SmartKey</strong>
+          </div>
+          <h1>Preparing your workspace</h1>
+          <p>{copy}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (auth.bootStatus === 'error') {
+    return (
+      <div className="boot-overlay" data-testid="boot.error">
+        <div className="boot-panel">
+          <div className="boot-mark">
+            <strong>SmartKey</strong>
+          </div>
+          <h1>Workspace sync failed</h1>
+          <p>{auth.bootError || 'The cloud workspace could not be loaded.'}</p>
+          <button className="btn btn-primary" type="button" onClick={() => auth.refreshWorkspace().catch(() => undefined)}>
+            Retry sync
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (!auth.session) {

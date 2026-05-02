@@ -62,7 +62,7 @@ async def indexing_url_extract(payload: AIRequest, request: Request):
         return api_ok(request, **(await execute('indexing_url_extract', input_payload, payload.provider, request)))
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, dict) else {'message': str(exc.detail)}
-        if detail.get('code') in {'configuration_required', 'provider_error'}:
+        if detail.get('code') in {'configuration_required', 'platform_unavailable', 'provider_error'}:
             log_domain_event('ai.indexing_url_extract.fallback', request=request, meta={'provider': detail.get('details', {}).get('provider', '')})
             return api_ok(
                 request,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/auth/AuthProvider'
 import { Card } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -22,12 +23,13 @@ function readApiError(issue: any, fallback: string) {
 }
 
 export function ArticlesPage() {
+  const auth = useAuth()
   const { t, language } = useI18n()
   const copy = t.articles
   const common = t.common
   const navigate = useNavigate()
-  const [items, setItems] = useState<ArticleItem[]>([])
-  const [keywords, setKeywords] = useState<KeywordItem[]>([])
+  const [items, setItems] = useState<ArticleItem[]>(auth.bootstrapData?.articles || [])
+  const [keywords, setKeywords] = useState<KeywordItem[]>(auth.bootstrapData?.keywords || [])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<ArticleStatus | ''>('')
   const [selectedId, setSelectedId] = useState('')
@@ -39,6 +41,12 @@ export function ArticlesPage() {
   const [error, setError] = useState('')
 
   const load = async () => {
+    if (auth.bootstrapData) {
+      setItems(auth.bootstrapData.articles)
+      setKeywords(auth.bootstrapData.keywords)
+      setError('')
+      return
+    }
     try {
       const [articleList, keywordList] = await Promise.all([articlesApi.list(), keywordsApi.list()])
       setItems(articleList)
@@ -53,7 +61,7 @@ export function ArticlesPage() {
 
   useEffect(() => {
     load()
-  }, [])
+  }, [auth.bootstrapData])
 
   useEffect(() => {
     const draft = consumeWorkbenchTaskDraft('articles')
@@ -146,6 +154,11 @@ export function ArticlesPage() {
     try {
       const updated = await articlesApi.update(id, payload)
       setItems((prev) => prev.map((item) => (item.id === id ? updated : item)))
+      auth.mutateBootstrapData((current) => current ? {
+        ...current,
+        articles: current.articles.map((item) => (item.id === id ? updated : item)),
+        sync_meta: { ...current.sync_meta, synced_at: new Date().toISOString() },
+      } : current)
       setError('')
     } catch (issue: any) {
       setError(readApiError(issue, language === 'zh' ? '文章保存失败。' : 'Failed to save article.'))
@@ -159,6 +172,15 @@ export function ArticlesPage() {
     try {
       const item = await articlesApi.create({ ...emptyForm, title })
       setItems((prev) => [item, ...prev])
+      auth.mutateBootstrapData((current) => current ? {
+        ...current,
+        articles: [item, ...current.articles],
+        sync_meta: {
+          ...current.sync_meta,
+          synced_at: new Date().toISOString(),
+          counts: { ...current.sync_meta.counts, articles: current.sync_meta.counts.articles + 1 },
+        },
+      } : current)
       setSelectedId(item.id)
       setQuickTitle('')
       setError('')
@@ -183,6 +205,15 @@ export function ArticlesPage() {
     try {
       await articlesApi.remove(id)
       setItems((prev) => prev.filter((item) => item.id !== id))
+      auth.mutateBootstrapData((current) => current ? {
+        ...current,
+        articles: current.articles.filter((item) => item.id !== id),
+        sync_meta: {
+          ...current.sync_meta,
+          synced_at: new Date().toISOString(),
+          counts: { ...current.sync_meta.counts, articles: Math.max(0, current.sync_meta.counts.articles - 1) },
+        },
+      } : current)
       setError('')
     } catch (issue: any) {
       setError(readApiError(issue, language === 'zh' ? '文章删除失败。' : 'Failed to delete article.'))

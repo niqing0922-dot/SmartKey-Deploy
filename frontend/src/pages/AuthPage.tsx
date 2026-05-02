@@ -25,7 +25,6 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
       } else {
         await auth.signUp(email, password)
       }
-      await auth.refreshWorkspace().catch(() => undefined)
       navigate(from, { replace: true })
     } catch (err: any) {
       setError(err?.message || 'Authentication failed.')

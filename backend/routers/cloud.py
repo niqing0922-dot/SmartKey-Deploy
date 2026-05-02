@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from backend.auth import require_cloud_context, require_cloud_user
 from backend.observability import api_ok, log_domain_event
-from backend.repositories.cloud import ensure_profile_and_default_workspace, import_snapshot, list_workspaces
+from backend.repositories.cloud import bootstrap_workspace_state, import_snapshot
 
 router = APIRouter(prefix="/api/cloud", tags=["cloud"])
 
@@ -15,15 +15,16 @@ class CloudImportPayload(BaseModel):
 @router.get("/bootstrap")
 def bootstrap_cloud_workspace(request: Request):
     user = require_cloud_user(request)
-    default_workspace = ensure_profile_and_default_workspace(user)
-    workspaces = list_workspaces(user)
-    return api_ok(request, user={"id": user.user_id, "email": user.email}, workspace=default_workspace, workspaces=workspaces)
+    preferred_workspace_id = (request.headers.get("x-workspace-id") or request.query_params.get("workspace_id") or "").strip()
+    payload = bootstrap_workspace_state(user, preferred_workspace_id)
+    return api_ok(request, **payload)
 
 
 @router.get("/workspaces")
 def get_workspaces(request: Request):
     user = require_cloud_user(request)
-    return api_ok(request, items=list_workspaces(user))
+    payload = bootstrap_workspace_state(user)
+    return api_ok(request, items=payload["workspaces"])
 
 
 @router.post("/import")

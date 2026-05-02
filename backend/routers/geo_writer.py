@@ -13,6 +13,7 @@ from backend.repositories import geo_drafts as local_geo_drafts
 from backend.repositories.settings import get_runtime_settings
 from backend.services.ai_service import execute
 from backend.services.geo_export import build_docx, build_markdown
+from backend.services.model_routing import platform_capabilities
 
 router = APIRouter(prefix="/api/geo-writer", tags=["geo-writer"])
 
@@ -86,7 +87,7 @@ async def create_draft(payload: GeoDraftRequest, request: Request):
             "draft_sections": result.get("draft_sections", []),
             "faq": result.get("faq", []),
             "suggestions": result.get("suggestions", []),
-            "provider": result.get("provider", settings["default_ai_provider"]),
+            "provider": result.get("provider", platform_capabilities()["active_ai_provider"]),
             "status": result.get("status", "draft"),
     }
     draft = cloud.save_geo_draft(data_ctx.cloud, draft_payload) if data_ctx.is_cloud else local_geo_drafts.save_geo_draft(draft_payload)

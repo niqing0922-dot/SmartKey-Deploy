@@ -8,7 +8,7 @@ from backend import db
 from backend.data_context import get_data_context
 from backend.observability import api_error, api_ok, log_domain_event
 from backend.repositories import cloud
-from backend.repositories.settings import get_settings
+from backend.services.model_routing import platform_capabilities
 
 router = APIRouter(prefix="/api/workbench", tags=["workbench"])
 
@@ -31,30 +31,6 @@ class ComposerAction(BaseModel):
 class WorkbenchExecutePayload(BaseModel):
     action: ComposerAction
 
-
-MODEL_NAMES = {
-    "gemini": "Gemini 2.0 Flash",
-    "minimax": "minimax 2.7-highspeed",
-    "openai": "OpenAI",
-    "anthropic": "Anthropic Claude",
-    "deepseek": "DeepSeek",
-    "qwen": "Qwen",
-    "moonshot": "Moonshot",
-    "grok": "xAI Grok",
-    "cohere": "Cohere",
-}
-
-PROVIDER_FIELDS = {
-    "gemini": ("gemini_enabled", "gemini_api_key"),
-    "minimax": ("minimax_enabled", "minimax_api_key"),
-    "openai": ("openai_enabled", "openai_api_key"),
-    "anthropic": ("anthropic_enabled", "anthropic_api_key"),
-    "deepseek": ("deepseek_enabled", "deepseek_api_key"),
-    "qwen": ("qwen_enabled", "qwen_api_key"),
-    "moonshot": ("moonshot_enabled", "moonshot_api_key"),
-    "grok": ("grok_enabled", "grok_api_key"),
-    "cohere": ("cohere_enabled", "cohere_api_key"),
-}
 
 LONGTAIL_MODIFIERS = [
     "supplier",
@@ -80,35 +56,27 @@ LONGTAIL_MODIFIERS = [
 ]
 
 
-ZH_STOP_WORDS_PATTERN = (
-    r"(帮我|请|扩展|生成|添加|一批|条|个|长尾词|关键词|关键字|相关文章|列表|写一篇|写文章|草稿|分析|检查|提交|收录|配置|设置|打开)"
-)
-
-
 def _is_zh(language: str) -> bool:
     return language.lower().startswith("zh")
 
 
-def _model_name(settings: dict[str, Any], language: str) -> str:
-    for provider, (enabled_field, key_field) in PROVIDER_FIELDS.items():
-        if settings.get(enabled_field) and settings.get(key_field):
-            return MODEL_NAMES.get(provider, provider)
-    default_provider = settings.get("default_ai_provider") or "minimax"
-    if settings.get(f"{default_provider}_api_key"):
-        return MODEL_NAMES.get(default_provider, default_provider)
-    return "模型未配置" if _is_zh(language) else "Model not configured"
+def _model_name() -> str:
+    capabilities = platform_capabilities()
+    if capabilities["ai_available"]:
+        return str(capabilities["active_ai_model_label"])
+    return "Platform unavailable"
 
 
 def _context_summary(request: Request, current_route: str, language: str) -> dict[str, Any]:
+    _ = language
     data_ctx = get_data_context(request)
     stats = cloud.dashboard_stats(data_ctx.cloud) if data_ctx.is_cloud else db.dashboard_stats()
     articles = cloud.list_articles(data_ctx.cloud) if data_ctx.is_cloud else db.list_articles()
-    settings = cloud.get_settings(data_ctx.cloud) if data_ctx.is_cloud else get_settings()
     return {
         "keyword_count": int(stats.get("keywords", {}).get("total") or 0),
         "article_count": len(articles),
         "pending_count": int(stats.get("keywords", {}).get("pending") or 0),
-        "model_name": _model_name(settings, language),
+        "model_name": _model_name(),
         "current_page": current_route or "/",
     }
 
@@ -123,13 +91,12 @@ def _number_from_prompt(prompt: str, default: int = 10) -> int:
 def _extract_topic(prompt: str) -> str:
     cleaned = re.sub(r"\d{1,3}", " ", prompt)
     cleaned = re.sub(
-        r"(expand|generate|add|keywords?|long[- ]tail|for|please|help|me|with|ideas|list|of|write|article|draft|analyze|check|submit|indexing|configure|setup|open)",
+        r"(expand|generate|add|keywords?|long[- ]tail|for|please|help|me|with|ideas|list|of|write|article|draft|analyze|check|submit|indexing|configure|setup|open|rank|ranking|serp|position|matrix|distribution|bulk|import)",
         " ",
         cleaned,
         flags=re.IGNORECASE,
     )
-    cleaned = re.sub(ZH_STOP_WORDS_PATTERN, " ", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.;:!?，。；：！？")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.;:!?")
     return cleaned or "industrial router"
 
 
@@ -145,81 +112,13 @@ def _generate_keywords(topic: str, count: int) -> list[str]:
     return generated
 
 
-def _looks_like_keyword_expansion(prompt: str) -> bool:
-    text = prompt.lower()
-    return any(token in text for token in ("expand", "long tail", "long-tail", "keyword ideas")) or any(
-        token in prompt for token in ("扩展", "长尾词", "关键词", "关键字")
-    )
-
-
-def _looks_like_settings(prompt: str) -> bool:
-    text = prompt.lower()
-    return any(token in text for token in ("openai key", "api key", "configure", "settings", "serpapi", "google credentials")) or any(
-        token in prompt for token in ("配置", "设置", "密钥", "key", "凭证")
-    )
-
-
-def _looks_like_indexing(prompt: str) -> bool:
-    text = prompt.lower()
-    return any(token in text for token in ("indexing", "indexed", "submit url", "check urls", "sitemap", "coverage")) or any(
-        token in prompt for token in ("收录", "索引", "提交 URL", "检查 URL", "网址")
-    )
-
-
-def _looks_like_rank(prompt: str) -> bool:
-    text = prompt.lower()
-    return any(token in text for token in ("rank", "ranking", "serp", "position")) or any(
-        token in prompt for token in ("排名", "位次")
-    )
-
-
-def _looks_like_recommend(prompt: str) -> bool:
-    text = prompt.lower()
-    return any(token in text for token in ("recommend keyword", "keyword recommend", "keyword ideas for article")) or any(
-        token in prompt for token in ("推荐关键词", "关键词推荐")
-    )
-
-
-def _looks_like_analyze(prompt: str) -> bool:
-    text = prompt.lower()
-    return any(token in text for token in ("analyze keyword", "keyword difficulty", "search intent")) or any(
-        token in prompt for token in ("分析", "难度", "搜索意图")
-    )
-
-
-def _looks_like_article(prompt: str) -> bool:
-    text = prompt.lower()
-    return any(token in text for token in ("write an article", "product page", "blog post", "draft article")) or any(
-        token in prompt for token in ("写一篇", "写文章", "文章", "产品页", "博客")
-    )
-
-
-def _looks_like_image_plan(prompt: str) -> bool:
-    text = prompt.lower()
-    return any(token in text for token in ("image plan", "hero image", "illustration", "visual")) or any(
-        token in prompt for token in ("配图", "图片", "插图")
-    )
-
-
-def _looks_like_import(prompt: str) -> bool:
-    text = prompt.lower()
-    return any(token in text for token in ("bulk import", "import keywords")) or any(
-        token in prompt for token in ("导入", "批量")
-    )
-
-
-def _looks_like_matrix(prompt: str) -> bool:
-    text = prompt.lower()
-    return "matrix" in text or "distribution" in text or "矩阵" in prompt or "分布" in prompt
+def _contains_any(text: str, tokens: tuple[str, ...]) -> bool:
+    return any(token in text for token in tokens)
 
 
 def _first_url(prompt: str) -> str | None:
     match = re.search(r"https?://[^\s\"'<>]+", prompt)
     return match.group(0) if match else None
-
-
-def _keyword_from_prompt(prompt: str) -> str:
-    return _extract_topic(prompt)
 
 
 def _dispatch_response(
@@ -261,82 +160,66 @@ def get_workbench_context(request: Request, current_route: str = "/", language: 
 @router.post("/dispatch")
 def dispatch_workbench(payload: WorkbenchDispatchPayload, request: Request):
     prompt = payload.prompt.strip()
+    text = prompt.lower()
     context = _context_summary(request, payload.current_route, payload.language)
-    is_zh = _is_zh(payload.language)
     topic = _extract_topic(prompt)
+    is_zh = _is_zh(payload.language)
 
-    if _looks_like_keyword_expansion(prompt):
+    if _contains_any(text, ("expand", "long tail", "long-tail", "keyword ideas")):
         count = _number_from_prompt(prompt)
-        keywords = _generate_keywords(topic, min(count, 20))
-        reply = (
-            f"我会先带你去关键词库，并预填 {topic} 的扩展任务。"
-            if is_zh
-            else f"I'll take you to the keyword library and prefill an expansion task for {topic}."
-        )
         return _dispatch_response(
             request=request,
             intent="keyword_expansion",
             mode="local_rules",
-            reply=reply,
+            reply="I will open the keyword library and prefill the expansion task.",
             actions=[],
             context_summary=context,
             requires_confirmation=True,
             target_route="/keywords",
-            prefill={"keyword": topic, "quickKeyword": topic, "search": topic, "generated_keywords": keywords, "type": "longtail", "status": "pending"},
+            prefill={"keyword": topic, "quickKeyword": topic, "search": topic, "generated_keywords": _generate_keywords(topic, min(count, 20)), "type": "longtail", "status": "pending"},
             suggested_action="review_keyword_expansion",
             confidence=0.96,
-            reason="Matched keyword expansion intent with a direct keywords workspace prefill.",
+            reason="Matched keyword expansion intent.",
         )
 
-    if _looks_like_article(prompt):
-        reply = "我会先进入 GEO Writer，并把文章主题预填好。" if is_zh else "I'll open GEO Writer and prefill the article brief."
+    if _contains_any(text, ("write an article", "product page", "blog post", "draft article")):
         return _dispatch_response(
             request=request,
             intent="geo_writer",
             mode="local_rules",
-            reply=reply,
+            reply="I will open GEO Writer and prefill the article brief.",
             actions=[],
             context_summary=context,
             requires_confirmation=True,
             target_route="/articles/geo-writer",
-            prefill={
-                "title": topic,
-                "primary_keyword": topic,
-                "secondary_keywords": topic,
-                "industry": "Industrial IoT",
-                "article_type": "landing" if ("产品页" in prompt or "product page" in prompt.lower()) else "blog",
-                "target_length": 1000,
-                "content_language": "zh" if is_zh else "en",
-            },
+            prefill={"title": topic, "primary_keyword": topic, "secondary_keywords": topic, "industry": "Industrial IoT", "article_type": "blog", "target_length": 1000, "content_language": "zh" if is_zh else "en"},
             suggested_action="generate_draft",
             confidence=0.91,
-            reason="Matched article writing intent and routed to GEO Writer.",
+            reason="Matched article writing intent.",
         )
 
-    if _looks_like_analyze(prompt):
-        reply = "我会把这个关键词带到分析页。" if is_zh else "I'll move this keyword into the analysis page."
+    if _contains_any(text, ("analyze keyword", "keyword difficulty", "search intent")):
         return _dispatch_response(
             request=request,
             intent="keyword_analysis",
             mode="local_rules",
-            reply=reply,
+            reply="I will move this keyword into the analysis page.",
             actions=[],
             context_summary=context,
             requires_confirmation=True,
             target_route="/keywords/analyze",
-            prefill={"keyword": _keyword_from_prompt(prompt), "context": topic},
+            prefill={"keyword": topic, "context": topic},
             suggested_action="run_analysis",
             confidence=0.9,
             reason="Matched keyword analysis intent.",
         )
 
-    if _looks_like_recommend(prompt):
-        reply = "我会打开关键词推荐页，并把主题先填进去。" if is_zh else "I'll open recommendations and prefill the topic."
+    if _contains_any(text, ("recommend keyword", "keyword recommend", "keyword ideas for article")):
         return _dispatch_response(
             request=request,
             intent="keyword_recommend",
             mode="local_rules",
-            reply=reply,
+            reply="I will open recommendations and prefill the topic.",
             actions=[],
             context_summary=context,
             requires_confirmation=True,
@@ -347,13 +230,12 @@ def dispatch_workbench(payload: WorkbenchDispatchPayload, request: Request):
             reason="Matched recommendation intent.",
         )
 
-    if _looks_like_image_plan(prompt):
-        reply = "我会把这个任务带到配图分析页。" if is_zh else "I'll move this task to the image planner."
+    if _contains_any(text, ("image plan", "hero image", "illustration", "visual")):
         return _dispatch_response(
             request=request,
             intent="image_planner",
             mode="local_rules",
-            reply=reply,
+            reply="I will move this task to the image planner.",
             actions=[],
             context_summary=context,
             requires_confirmation=True,
@@ -364,13 +246,12 @@ def dispatch_workbench(payload: WorkbenchDispatchPayload, request: Request):
             reason="Matched image planning intent.",
         )
 
-    if _looks_like_import(prompt):
-        reply = "我会先打开批量导入页。" if is_zh else "I'll open the bulk import page first."
+    if _contains_any(text, ("bulk import", "import keywords")):
         return _dispatch_response(
             request=request,
             intent="bulk_import",
             mode="local_rules",
-            reply=reply,
+            reply="I will open the bulk import page.",
             actions=[],
             context_summary=context,
             requires_confirmation=True,
@@ -381,13 +262,12 @@ def dispatch_workbench(payload: WorkbenchDispatchPayload, request: Request):
             reason="Matched bulk import intent.",
         )
 
-    if _looks_like_matrix(prompt):
-        reply = "我会切到矩阵视图，并带上筛选语境。" if is_zh else "I'll switch to the matrix view with the filter context."
+    if "matrix" in text or "distribution" in text:
         return _dispatch_response(
             request=request,
             intent="matrix_view",
             mode="local_rules",
-            reply=reply,
+            reply="I will switch to the matrix view.",
             actions=[],
             context_summary=context,
             requires_confirmation=True,
@@ -398,76 +278,60 @@ def dispatch_workbench(payload: WorkbenchDispatchPayload, request: Request):
             reason="Matched matrix or distribution intent.",
         )
 
-    if _looks_like_rank(prompt):
-        reply = "我会把关键词带到排名追踪页。" if is_zh else "I'll route this to the rank tracker."
+    if _contains_any(text, ("rank", "ranking", "serp", "position")):
         return _dispatch_response(
             request=request,
             intent="rank_tracking",
             mode="local_rules",
-            reply=reply,
+            reply="I will route this to the rank tracker.",
             actions=[],
             context_summary=context,
             requires_confirmation=True,
             target_route="/rank-tracker",
-            prefill={"keyword": _keyword_from_prompt(prompt), "provider": "serpapi"},
+            prefill={"keyword": topic},
             suggested_action="check_rank",
             confidence=0.83,
             reason="Matched rank tracking intent.",
         )
 
-    if _looks_like_indexing(prompt):
+    if _contains_any(text, ("indexing", "indexed", "submit url", "check urls", "sitemap", "coverage")):
         found_url = _first_url(prompt)
-        urls = [found_url] if found_url else []
-        reply = "我会打开 Indexing 工作区，并先把 URL 准备好。" if is_zh else "I'll open the indexing workspace and prepare the URLs first."
         return _dispatch_response(
             request=request,
             intent="indexing",
             mode="local_rules",
-            reply=reply,
+            reply="I will open the indexing workspace and prepare the URLs.",
             actions=[],
             context_summary=context,
             requires_confirmation=True,
             target_route="/indexing",
-            prefill={"urls": urls, "action": "inspect"},
+            prefill={"urls": [found_url] if found_url else [], "action": "inspect"},
             suggested_action="inspect_urls",
             confidence=0.9,
             reason="Matched indexing intent.",
         )
 
-    if _looks_like_settings(prompt):
-        text = prompt.lower()
-        section = "ai"
-        provider = "openai" if "openai" in text else "minimax" if "minimax" in text else "serpapi" if "serpapi" in text else "indexing" if "google" in text else "ai"
-        if provider == "serpapi":
-            section = "seo"
-        elif provider == "indexing":
-            section = "indexing"
-        reply = "我会带你去设置页，并定位到对应配置区。" if is_zh else "I'll take you to Settings and focus the right configuration section."
+    if _contains_any(text, ("settings", "configure", "setup")):
         return _dispatch_response(
             request=request,
             intent="settings",
             mode="local_rules",
-            reply=reply,
+            reply="I will open Settings.",
             actions=[],
             context_summary=context,
             requires_confirmation=True,
             target_route="/settings",
-            prefill={"section": section, "provider": provider},
-            suggested_action="configure_settings",
-            confidence=0.92,
-            reason="Matched configuration intent.",
+            prefill={},
+            suggested_action="review_settings",
+            confidence=0.8,
+            reason="Matched settings intent.",
         )
 
-    reply = (
-        "我先留在首页。你可以更具体一点，比如“帮我扩展 10 个 industrial router 长尾词”或“写一篇 WR143 产品页文章”。"
-        if is_zh
-        else "I'll keep us on the AI home page for now. Try a more specific request like 'expand 10 industrial router long-tail keywords' or 'write a WR143 product page article'."
-    )
     return _dispatch_response(
         request=request,
         intent="unknown",
         mode="local_rules",
-        reply=reply,
+        reply="I will keep us on the home page for now. Try a more specific request like expanding keywords or drafting an article.",
         actions=[],
         context_summary=context,
         requires_confirmation=True,
@@ -505,14 +369,14 @@ def execute_workbench_action(payload: WorkbenchExecutePayload, request: Request)
         if key in existing:
             skipped.append(keyword)
             continue
-        payload = {
+        item_payload = {
             "keyword": keyword,
             "type": "longtail",
             "priority": "medium",
             "status": "pending",
             "notes": "Added by GlobalComposer",
         }
-        item = cloud.create_keyword(data_ctx.cloud, payload) if data_ctx.is_cloud else db.create_keyword(payload)
+        item = cloud.create_keyword(data_ctx.cloud, item_payload) if data_ctx.is_cloud else db.create_keyword(item_payload)
         existing.add(key)
         created.append(item)
 

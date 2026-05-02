@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/auth/AuthProvider'
 import { Card } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -66,14 +67,15 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 export function GeoWriterPage() {
+  const auth = useAuth()
   const { t, language } = useI18n()
   const copy = t.geoWriter
   const common = t.common
 
-  const [drafts, setDrafts] = useState<GeoDraftItem[]>([])
+  const [drafts, setDrafts] = useState<GeoDraftItem[]>(auth.bootstrapData?.geo_article_drafts || [])
   const [selected, setSelected] = useState<GeoDraftItem | null>(null)
-  const [settings, setSettings] = useState<SettingsItem | null>(null)
-  const [keywords, setKeywords] = useState<KeywordItem[]>([])
+  const [settings, setSettings] = useState<SettingsItem | null>(auth.bootstrapData?.settings || null)
+  const [keywords, setKeywords] = useState<KeywordItem[]>(auth.bootstrapData?.keywords || [])
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -100,6 +102,21 @@ export function GeoWriterPage() {
   ]
 
   const load = async () => {
+    if (auth.bootstrapData) {
+      const draftList = auth.bootstrapData.geo_article_drafts
+      const nextSettings = auth.bootstrapData.settings
+      const keywordList = auth.bootstrapData.keywords
+      setDrafts(draftList)
+      setSelected((current) => draftList.find((item) => item.id === current?.id) || draftList[0] || null)
+      setSettings(nextSettings)
+      setKeywords(keywordList)
+      setForm((current) => ({
+        ...current,
+        content_language: nextSettings.default_content_language || current.content_language,
+      }))
+      setError('')
+      return
+    }
     try {
       const [draftList, nextSettings, keywordList] = await Promise.all([
         geoWriterApi.list(),
@@ -124,7 +141,7 @@ export function GeoWriterPage() {
 
   useEffect(() => {
     load()
-  }, [])
+  }, [auth.bootstrapData])
 
   useEffect(() => {
     const draft = consumeWorkbenchTaskDraft('articles.geo-writer')
@@ -183,13 +200,27 @@ export function GeoWriterPage() {
         content_language: form.content_language,
         content_blocks: form.content_blocks,
       })
+      auth.mutateBootstrapData((current) => current ? {
+        ...current,
+        geo_article_drafts: [draft, ...current.geo_article_drafts.filter((item) => item.id !== draft.id)],
+        sync_meta: {
+          ...current.sync_meta,
+          synced_at: new Date().toISOString(),
+          counts: {
+            ...current.sync_meta.counts,
+            geo_article_drafts: current.geo_article_drafts.some((item) => item.id === draft.id)
+              ? current.sync_meta.counts.geo_article_drafts
+              : current.sync_meta.counts.geo_article_drafts + 1,
+          },
+        },
+      } : current)
       await load()
       setSelected(draft)
       setMessage(copy.generated)
     } catch (issue: any) {
       const detail = issue?.response?.data?.detail
-      if (detail?.code === 'configuration_required') {
-        setError(copy.configurationRequired.replace('{provider}', detail.provider))
+      if (detail?.code === 'configuration_required' || detail?.code === 'platform_unavailable') {
+        setError(detail?.message || copy.configurationRequired.replace('{provider}', detail?.provider || 'platform'))
       } else {
         setError(detail?.message || issue.message || copy.generateFailed)
       }
@@ -203,7 +234,22 @@ export function GeoWriterPage() {
     setError('')
     setMessage('')
     try {
-      await geoWriterApi.save(selected.id)
+      const result = await geoWriterApi.save(selected.id)
+      auth.mutateBootstrapData((current) => current ? {
+        ...current,
+        geo_article_drafts: current.geo_article_drafts.map((item) => (item.id === result.draft.id ? result.draft : item)),
+        articles: [result.article, ...current.articles.filter((item) => item.id !== result.article.id)],
+        sync_meta: {
+          ...current.sync_meta,
+          synced_at: new Date().toISOString(),
+          counts: {
+            ...current.sync_meta.counts,
+            articles: current.articles.some((item) => item.id === result.article.id)
+              ? current.sync_meta.counts.articles
+              : current.sync_meta.counts.articles + 1,
+          },
+        },
+      } : current)
       await load()
       setMessage(copy.saved)
     } catch (issue: any) {

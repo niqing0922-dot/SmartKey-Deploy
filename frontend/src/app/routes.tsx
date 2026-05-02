@@ -16,6 +16,7 @@ import { IndexingPage } from '@/pages/Indexing'
 import { RankPage } from '@/pages/Rank'
 import { AuthPage } from '@/pages/AuthPage'
 import { ShowcasePage } from '@/pages/Showcase'
+import { RequireAuth } from '@/auth/RequireAuth'
 
 export function ShowcaseOnlyRoutes() {
   return (
@@ -32,7 +33,7 @@ export function AppRoutes() {
       <Route path="/showcase" element={<ShowcasePage />} />
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/signup" element={<AuthPage mode="signup" />} />
-      <Route path="/" element={<AppShell />}>
+      <Route path="/" element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route index element={<AIHomePage />} />
         <Route path="home" element={<AIHomePage />} />
         <Route path="dashboard" element={<DashboardPage />} />

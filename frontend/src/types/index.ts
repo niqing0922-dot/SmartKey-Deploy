@@ -88,50 +88,26 @@ export interface SettingsItem {
   default_tone: string
   default_article_type: string
   default_content_language: ContentLanguage
-  rank_target_domain: string
-  default_ai_provider: AIProvider
-  default_seo_api?: 'serpapi' | 'dataforseo'
-  gemini_enabled?: boolean
-  minimax_enabled?: boolean
-  openai_enabled?: boolean
-  anthropic_enabled?: boolean
-  deepseek_enabled?: boolean
-  qwen_enabled?: boolean
-  moonshot_enabled?: boolean
-  grok_enabled?: boolean
-  cohere_enabled?: boolean
-  minimax_api_key: string
-  gemini_api_key: string
-  openai_api_key: string
-  anthropic_api_key: string
-  deepseek_api_key: string
-  qwen_api_key: string
-  moonshot_api_key: string
-  grok_api_key: string
-  cohere_api_key: string
-  serpapi_key: string
-  serpapi_enabled?: boolean
-  dataforseo_api_login: string
-  dataforseo_api_password: string
-  dataforseo_enabled?: boolean
-  python_path: string
-  google_credentials_path: string
-  indexing_enabled?: boolean
-  gemini_api_key_configured?: boolean
-  minimax_api_key_configured?: boolean
-  openai_api_key_configured?: boolean
-  anthropic_api_key_configured?: boolean
-  deepseek_api_key_configured?: boolean
-  qwen_api_key_configured?: boolean
-  moonshot_api_key_configured?: boolean
-  grok_api_key_configured?: boolean
-  cohere_api_key_configured?: boolean
-  serpapi_key_configured?: boolean
-  dataforseo_api_login_configured?: boolean
-  dataforseo_api_password_configured?: boolean
-  google_credentials_path_configured?: boolean
-  last_enabled_ai_provider?: AIProvider
-  last_enabled_seo_provider?: 'serpapi' | 'dataforseo'
+  ai_available: boolean
+  rank_available: boolean
+  indexing_available: boolean
+  active_ai_model_label: string
+  active_ai_provider?: AIProvider | string
+}
+
+export interface PlatformCapabilities {
+  ai_available: boolean
+  rank_available: boolean
+  indexing_available: boolean
+  active_ai_model_label: string
+  active_ai_provider?: AIProvider | string
+}
+
+export interface PlatformStatusSnapshot {
+  capabilities: PlatformCapabilities
+  routes: Record<string, { provider: string; model: string; label: string }>
+  previous_routes: Record<string, unknown>
+  gray_workspace_count: number
 }
 
 export interface ImagePlanItem {
@@ -321,6 +297,38 @@ export interface ContextSummary {
 
 export interface WorkspaceContext {
   context_summary: ContextSummary
+}
+
+export type BootStatus = 'idle' | 'auth' | 'workspace' | 'syncing' | 'ready' | 'error'
+
+export interface WorkspaceSummary {
+  id: string
+  name: string
+  role: string
+}
+
+export interface SyncMeta {
+  synced_at: string
+  counts: {
+    keywords: number
+    articles: number
+    geo_article_drafts: number
+  }
+}
+
+export interface CloudBootstrapData {
+  user: {
+    id: string
+    email: string
+  }
+  workspace: WorkspaceSummary
+  workspaces: WorkspaceSummary[]
+  settings: SettingsItem
+  keywords: KeywordItem[]
+  articles: ArticleItem[]
+  geo_article_drafts: GeoDraftItem[]
+  dashboard_stats: DashboardStats
+  sync_meta: SyncMeta
 }
 
 export type ComposerAction =
